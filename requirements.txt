@@ -1,3 +1,14 @@
 fastapi==0.116.1
 uvicorn[standard]==0.35.0
 python-multipart==0.0.20
+
+opencv-python 
+lxml 
+numpy>=1.26
+paddlepaddle==3.2.2 
+paddleocr==3.5.0
+langchain-text-splitters
+
+opencv-python>=4.9 
+pytesseract>=0.3.10
+pdf2image
