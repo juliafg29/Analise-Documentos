@@ -1,9 +1,6 @@
-from app.services.extract_digital_cnh_data import validar_documento
-from app.services.extract_digitalized_data import extrair_dados
-from app.services.utils import gerar_xml
-
 import app.services.utils as utils
 from app.services.extract_digitalized_data import processar_documento
+from app.services.extract_digital_cnh_data import extract_ecnh
 from app.services.xml_utils import gerar_xml
 
 def document_workflow(input_file_path, MIN_SCORE = 0.5):
@@ -57,7 +54,7 @@ def document_workflow(input_file_path, MIN_SCORE = 0.5):
 
     return final_result_with_xml
 
-    
+
 def processar_documento(caminho_pdf: str) -> dict:
     """
     Orquestra o fluxo principal de processamento do documento:

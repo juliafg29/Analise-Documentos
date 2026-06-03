@@ -1,7 +1,9 @@
 # Analise-Documentos
 
 [INCLUDE]
+docker build -t api-documentos .
 
+docker run -p 8000:8000 api-documentos
 
 
 Requisitos Mínimos
