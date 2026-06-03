@@ -5,6 +5,10 @@ docker build -t api-documentos .
 
 docker run -p 8000:8000 api-documentos
 
+curl -X POST "http://localhost:8000/documentos/analisar" \
+  -F "arquivo=@/caminho/para/seu/documento.pdf"
+
+sudo docker run --rm -p 8000:8000 -v "$(pwd)":/app api-doc2
 
 Requisitos Mínimos
 -----
