@@ -12,12 +12,12 @@ def document_workflow(input_file_path, MIN_SCORE = 0.5):
     # 1. Compose Paddle OCR
     utils.compose_paddle_ocr()
 
-    # 2. Extract data with PadddleOCR
+    # 2. Extract data with  PadddleOCR
     all_results = []
     final_result = []
 
     for image in all_image_pages:
-        result = processar_documento(image, MIN_SCORE)
+        result = processar_documento(image, min_score=MIN_SCORE)
 
         tipo_doc = result.get("tipo_documento", {})
         print(f"  Tipo: {tipo_doc.get('tipo')}\n")

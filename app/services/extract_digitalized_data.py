@@ -16,8 +16,6 @@ from paddleocr import PaddleOCR
 
 # CONFIGURAÇÕES
 
-MIN_SCORE = 0.50
-
 EXTENSOES_IMAGEM = {
     ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"
 }
@@ -378,7 +376,7 @@ def calcular_confianca_etiqueta(
 
 # OCR
 
-def executar_ocr(img, min_score: float = MIN_SCORE):
+def executar_ocr(img, min_score: float):
     resultado = ocr.predict(img)
     res = resultado[0]
 
@@ -746,7 +744,7 @@ MARCADORES_DOCUMENTO = {
 }
 
 
-def classificar_tipo_documento(texts, scores, min_score: float = MIN_SCORE):
+def classificar_tipo_documento(texts, scores, min_score: float):
     votos = {"CARTEIRA DE IDENTIDADE": 0.0, "CARTEIRA NACIONAL DE HABILITAÇÃO": 0.0}
     evidencias = []
 
@@ -866,7 +864,7 @@ def salvar_xml(resultado: dict, caminho_xml: str):
 
 # PROCESSAMENTO DE DOCUMENTO
 
-def processar_documento(document_imagem: np.ndarray, min_score: float = MIN_SCORE):
+def processar_documento(document_imagem: np.ndarray, min_score: float):
     
     if document_imagem is not np.ndarray:
         raise ValueError(f"Nao foi possivel usar a imagem")
