@@ -855,18 +855,27 @@ def merge_data(primary: CNHData, fallback: CNHData) -> CNHData:
 
 
 def extract_ecnh(
-    image_path: Path,
+    document_image: np.ndarray,
     lang: str = "por+eng",
     debug_dir: Path | None = None,
     validate_document: bool = True,
 ) -> tuple[CNHData, str]:
 
  
-    image = cv2.imread(str(image_path))
-    if image is None:
-        raise FileNotFoundError(f"Não foi possível abrir a imagem: {image_path}")
+    #image = cv2.imread(str(image_path))
+    if document_image is None:
+        raise ValueError("A imagem do documento não pode ser vazio.")
 
-    document_check = identify_cnh_image(image, lang=lang)
+    if not isinstance(document_image, np.ndarray):
+        raise TypeError(
+            f"document_imagem deve ser um np.ndarray, mas recebeu {type(document_image)}"
+        )
+
+    if document_image.size == 0:
+        raise ValueError("A imagem do documento está vazia.")
+
+    document_check = identify_cnh_image(document_image, lang=lang)
+
     if validate_document and not document_check["is_cnh"]:
         markers = ", ".join(document_check["markers"]) or "nenhum marcador forte"
         raise ValueError(
@@ -875,7 +884,7 @@ def extract_ecnh(
             "Use validate_document=False ou --skip-validation para recortes parciais."
         )
 
-    cnh_crop = crop_probable_cnh_page(image)
+    cnh_crop = crop_probable_cnh_page(document_image)
     layout_fields, layout_confidences = extract_layout_fields(cnh_crop, debug_dir=debug_dir)
 
     # Usa OCR com confiança para obter tanto o texto quanto o índice linha→conf.
@@ -911,4 +920,55 @@ def extract_ecnh(
         "documento_cnh_score": str(document_check["score"]),
         "documento_cnh_marcadores": ", ".join(document_check["markers"]),
     }
-    return merged, text
+    
+    dados = merged
+
+    campos = {
+        "nome": dados.nome,
+        "data_nascimento": dados.data_nascimento,
+        "nacionalidade": dados.nacionalidade,
+        "local_nascimento": dados.local_nascimento,
+        "cpf": dados.cpf,
+        "rg": dados.documento_identidade,
+        "orgao_emissor": dados.orgao_emissor,
+        "uf": dados.uf,
+    }
+
+    confianca = {
+        "nome": dados.confianca_campos.get("nome"),
+        "data_nascimento": dados.confianca_campos.get("data_nascimento"),
+        "nacionalidade": dados.confianca_campos.get("nacionalidade"),
+        "local_nascimento": dados.confianca_campos.get("local_nascimento"),
+        "cpf": dados.confianca_campos.get("cpf"),
+        "rg": dados.confianca_campos.get("documento_identidade"),
+        "orgao_emissor": dados.confianca_campos.get("orgao_emissor"),
+        "uf": dados.confianca_campos.get("uf"),
+    }
+
+    resultado = {
+        "tipo_documento": {
+            "tipo": "CARTEIRA NACIONAL DE HABILITAÇÃO",
+            "votos_normalizados": {
+                "CARTEIRA DE IDENTIDADE": 0.0,
+                "CARTEIRA NACIONAL DE HABILITAÇÃO": 1.0
+            },
+            "documento_cnh": dados.documento_cnh,
+            "marcadores_cnh": dados.marcadores_cnh,
+            "campos_detectados": dados.campos_detectados,
+        },
+        "extracao": {
+            "campos": campos,
+            "confianca": confianca,
+            "evidencias": {},
+            "linhas": [],
+        },
+        "tokens_ocr": [],
+    }
+
+    return resultado
+
+
+
+
+
+    #return merged, text

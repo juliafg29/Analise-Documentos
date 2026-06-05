@@ -1,6 +1,7 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from tempfile import NamedTemporaryFile
+from pathlib import Path
 import shutil
 import os
 
@@ -20,41 +21,97 @@ def home():
         "mensagem": "API de processamento de documentos ativa."
     }
 
-
 @app.post("/documentos/analisar")
 async def analisar_documento(
-    arquivo: UploadFile = File(...)
+    arquivo: UploadFile = File(...),
+    tipo_entrada: str = Form("documento_escaneado"),
+    pasta_saida: str = Form(".")
 ):
     caminho_temporario = None
 
     try:
+        tipo_entrada = tipo_entrada.strip().lower()
+        tipos_validos = ["cnh_digital", "documento_escaneado"]
+
+        if tipo_entrada not in tipos_validos:
+            raise HTTPException(
+                status_code=400,
+                detail="tipo_entrada inválido. Use 'cnh_digital' ou 'documento_escaneado'."
+            )
+
         if not arquivo.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Somente PDF é permitido.")
+            raise HTTPException(
+                status_code=400,
+                detail="Somente PDF é permitido."
+            )
 
         MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
         conteudo = await arquivo.read()
 
         if len(conteudo) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail="Arquivo muito grande.")
+            raise HTTPException(
+                status_code=413,
+                detail="Arquivo muito grande."
+            )
 
         if not conteudo.startswith(b"%PDF-"):
-            raise HTTPException(status_code=400, detail="Arquivo PDF inválido.")
+            raise HTTPException(
+                status_code=400,
+                detail="Arquivo PDF inválido."
+            )
 
         with NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
             temp_file.write(conteudo)
             caminho_temporario = temp_file.name
 
-        print("[debug] Vai compor Paddle ocr: .. \n")
-            # 1. Compose Paddle OCR
-        ocr_paddleocr = utils.compose_paddle_ocr()
-            
-        print("[debug] Vai processar o documento: .. \n")
-        resultado = document_workflow(caminho_temporario, ocr_paddleocr)
+        print(f"[debug] Tipo de entrada informado: {tipo_entrada}\n")
 
-        print("[debug] terminou do: .. \n")
+        ocr_paddleocr = None
+
+        if tipo_entrada == "documento_escaneado":
+            print("[debug] Vai compor Paddle OCR...\n")
+            ocr = utils.compose_paddle_ocr()
+        else:
+            ocr = "Pytesseract"
+            print("[debug] Documento informado como CNH digital. Paddle OCR não será carregado.\n")
+
+        print("[debug] Vai processar o documento...\n")
+
+        resultado = document_workflow(
+            input_file_path=caminho_temporario,
+            tipo_entrada=tipo_entrada,
+            ocr=ocr
+        )
+
+        print("[debug] Terminou document_workflow.\n")
+
+        # Cria a pasta de saída, se ela não existir
+        pasta_saida = Path(pasta_saida)
+        pasta_saida.mkdir(parents=True, exist_ok=True)
+
+        # Define nome do XML com base no nome original do PDF
+        nome_base = Path(arquivo.filename).stem
+        caminho_xml = pasta_saida / f"{nome_base}_resultado.xml"
+
+        # Pega o XML final gerado
+        xml_final = resultado.get("xml")
+
+        if not xml_final:
+            raise HTTPException(
+                status_code=500,
+                detail="O XML final não foi encontrado no resultado do processamento."
+            )
+
+        # Salva o XML na pasta de saída
+        caminho_xml.write_text(xml_final, encoding="utf-8")
+
+        print(f"[debug] XML salvo em: {caminho_xml}\n")
+
         return JSONResponse(content={
             "status": "sucesso",
+            "tipo_entrada": tipo_entrada,
+            "arquivo_xml": str(caminho_xml),
             "resultado": resultado
         })
 
@@ -69,8 +126,7 @@ async def analisar_documento(
 
     finally:
         if caminho_temporario and os.path.exists(caminho_temporario):
-            os.remove(caminho_temporario)  
-
+            os.remove(caminho_temporario)
 '''
 @app.post("/documentos/analisar")
 async def analisar_documento(

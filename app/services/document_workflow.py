@@ -4,35 +4,61 @@ from app.services.extract_digital_cnh_data import extract_ecnh
 from app.services.xml_utils import gerar_xml
 
 
-def document_workflow(input_file_path, ocr, MIN_SCORE = 0.5):
+def document_workflow(input_file_path, tipo_entrada, ocr, MIN_SCORE = 0.5):
 
     # Pdf to Image
     all_image_pages = utils.pdf_to_images(input_file_path, dpi = 300)
 
-    # 2. Extract data with  PadddleOCR
     all_results = []
     final_result = []
 
     for image in all_image_pages:
-        print("[debug] chegou aqui para processar doc")
-        result = processar_documento(image, ocr, MIN_SCORE)
 
-        tipo_doc = result.get("tipo_documento", {})
-        print(f"  Tipo: {tipo_doc.get('tipo')}\n")
+        if tipo_entrada == "documento_escaneado":
+        # 2. Extract data with  PadddleOCR
+            print("[debug] chegou aqui para processar doc")
+            result = processar_documento(image, ocr, MIN_SCORE)
 
-        extracao = result.get("extracao", {})
-        campos = extracao.get("campos", {})
-        confianca = extracao.get("confianca", {})
+            tipo_doc = result.get("tipo_documento", {})
+            print(f"  Tipo: {tipo_doc.get('tipo')}\n")
 
-        print("\nCAMPOS_EXTRAIDOS\n")
-       
-        for campo, valor in campos.items():
-            confianca_campo = confianca.get(campo, "-")
-            print(f"  {campo}: {valor} [{confianca_campo}]\n")
+            extracao = result.get("extracao", {})
+            campos = extracao.get("campos", {})
+            confianca = extracao.get("confianca", {})
 
-        all_results.append(result)
+            print("\nCAMPOS_EXTRAIDOS\n")
+        
+            for campo, valor in campos.items():
+                confianca_campo = confianca.get(campo, "-")
+                print(f"  {campo}: {valor} [{confianca_campo}]\n")
 
-    # Choose the best option for all fields
+            all_results.append(result)
+
+        elif tipo_entrada == "cnh_digital":
+        
+            resultado_cnh_digital = extract_ecnh(image, lang ="por+eng")
+
+            tipo_doc = resultado_cnh_digital.get("tipo_documento", {})
+            print(f"  Tipo: {tipo_doc.get('tipo')}\n")
+
+            extracao = resultado_cnh_digital.get("extracao", {})
+            campos = extracao.get("campos", {})
+            confianca = extracao.get("confianca", {})
+
+            print("\nCAMPOS_EXTRAIDOS\n")
+
+            for campo, valor in campos.items():
+                confianca_campo = confianca.get(campo, "-")
+                print(f"  {campo}: {valor} [{confianca_campo}]\n")
+
+            all_results.append(resultado_cnh_digital)
+
+        else:
+            raise ValueError(
+                "tipo_entrada inválido. Use 'documento_escaneado' ou 'cnh_digital'."
+            )
+
+        # Escolhe o melhor resultado final entre as páginas
     if len(all_results) > 1:
         final_result = utils.gather_results(all_results)
     else:
@@ -54,36 +80,3 @@ def document_workflow(input_file_path, ocr, MIN_SCORE = 0.5):
     final_result_with_xml = gerar_xml(final_result, caminho_pdf=input_file_path)
 
     return final_result_with_xml
-
-
-#def processar_documento(caminho_pdf: str) -> dict:
-#    """
-#    Orquestra o fluxo principal de processamento do documento:
-#    1. valida o PDF;
-#    2. extrai os dados;
-#    3. gera a estrutura XML;
-#    4. retorna o resultado consolidado.
-#    """
-#
-#    validacao = validar_documento(caminho_pdf)
-#
-#    if not validacao["valido"]:
-#        return {
-#            "status": "erro",
-#            "documento_valido": False,
-#            "mensagens": validacao["mensagens"],
-#            "dados_extraidos": None,
-#            "xml": None
-#        }
-#
-#    #dados_extraidos = extrair_dados(caminho_pdf)
-#    dados_extraidos = "Olá"
-#    #xml_gerado = gerar_xml(dados_extraidos)
-#    xml_gerado = " Mundo"
-#    return {
-#        "status": "sucesso",
-#        "documento_valido": True,
-#        "mensagens": validacao["mensagens"],
-#        "dados_extraidos": dados_extraidos,
-#        "xml": xml_gerado
-#    }
