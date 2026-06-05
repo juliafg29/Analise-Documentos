@@ -5,6 +5,7 @@ import shutil
 import os
 
 from app.services.document_workflow import document_workflow
+import app.services.utils as utils
 
 app = FastAPI(
     title="Serviço de Validação e Extração de Documentos",
@@ -43,10 +44,15 @@ async def analisar_documento(
         with NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
             temp_file.write(conteudo)
             caminho_temporario = temp_file.name
+
+        print("[debug] Vai compor Paddle ocr: .. \n")
+            # 1. Compose Paddle OCR
+        ocr_paddleocr = utils.compose_paddle_ocr()
             
         print("[debug] Vai processar o documento: .. \n")
-        resultado = document_workflow(caminho_temporario)
+        resultado = document_workflow(caminho_temporario, ocr_paddleocr)
 
+        print("[debug] terminou do: .. \n")
         return JSONResponse(content={
             "status": "sucesso",
             "resultado": resultado

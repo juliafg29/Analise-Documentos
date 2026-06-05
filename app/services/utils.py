@@ -8,37 +8,38 @@ import numpy as np
 import logging
 from paddleocr import PaddleOCR
 
-def pdf_para_jpg(caminho_pdf, dpi=300):
+
+def pdf_to_images(caminho_pdf: str, dpi: int = 300) -> list[np.ndarray]:
     """
-    Converte cada página de um PDF em imagens JPG.
-    Ignora PDFs problemáticos (ex: muito grandes).
+    Converte cada página de um PDF em uma imagem no formato np.ndarray.
+
+    Retorna:
+        todas_paginas: lista de imagens, onde cada imagem é um np.ndarray
+                       no formato BGR, compatível com OpenCV.
     """
 
-    # Arquivos com muita resolução não serão considerados na convesão para imagem para proteção do computador
-    try:
-        paginas = convert_from_path(caminho_pdf, dpi=dpi)
-    except DecompressionBombError:
-        print(f"[IGNORADO] {os.path.basename(caminho_pdf)} → imagem muito grande (possível decompression bomb)")
-        return
-    except Exception as e:
-        print(f"[ERRO] {os.path.basename(caminho_pdf)} → {e}")
-        return
+    paginas = convert_from_path(caminho_pdf, dpi=dpi)
 
-    # Adapta nome do arquivo
-    #nome_pdf = os.path.splitext(os.path.basename(caminho_pdf))[0]
-    todas_paginas = []
+    todas_paginas: list[np.ndarray] = []
 
-    # Para cada pagina do PDF é gerado uma imagem
-    for i in enumerate(paginas):
-        imagem_cv = cv2.cvtColor(np.array(paginas[i]), cv2.COLOR_RGB2BGR)
+    for pagina in paginas:
+        # pagina vem como PIL.Image
+        imagem_np = np.array(pagina)
+
+        # Converte RGB para BGR, padrão usado pelo OpenCV
+        imagem_cv = cv2.cvtColor(imagem_np, cv2.COLOR_RGB2BGR)
+
         todas_paginas.append(imagem_cv)
-
+    print(type(todas_paginas))
+    print(type(todas_paginas[0]))
     return todas_paginas
 
 def compose_paddle_ocr():
     logging.getLogger('ppocr').setLevel(logging.WARNING)
 
-    ocr = PaddleOCR(use_angle_cls=True, lang='pt')
+    ocr_paddleocr = PaddleOCR(use_angle_cls=True, lang='pt')
+
+    return ocr_paddleocr
 
 def gather_results(results:list):
 

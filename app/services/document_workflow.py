@@ -3,21 +3,19 @@ from app.services.extract_digitalized_data import processar_documento
 from app.services.extract_digital_cnh_data import extract_ecnh
 from app.services.xml_utils import gerar_xml
 
-def document_workflow(input_file_path, MIN_SCORE = 0.5):
+
+def document_workflow(input_file_path, ocr, MIN_SCORE = 0.5):
 
     # Pdf to Image
-    all_image_pages = utils.convert_from_path(input_file_path, dpi = 300)
-
-    #STEPS FOR DIGITALIZED DOCUMENTS
-    # 1. Compose Paddle OCR
-    utils.compose_paddle_ocr()
+    all_image_pages = utils.pdf_to_images(input_file_path, dpi = 300)
 
     # 2. Extract data with  PadddleOCR
     all_results = []
     final_result = []
 
     for image in all_image_pages:
-        result = processar_documento(image, min_score=MIN_SCORE)
+        print("[debug] chegou aqui para processar doc")
+        result = processar_documento(image, ocr, MIN_SCORE)
 
         tipo_doc = result.get("tipo_documento", {})
         print(f"  Tipo: {tipo_doc.get('tipo')}\n")
@@ -27,8 +25,10 @@ def document_workflow(input_file_path, MIN_SCORE = 0.5):
         confianca = extracao.get("confianca", {})
 
         print("\nCAMPOS_EXTRAIDOS\n")
+       
         for campo, valor in campos.items():
-            print(f"  {campo}: {valor} [{confianca[campo]}]\n")
+            confianca_campo = confianca.get(campo, "-")
+            print(f"  {campo}: {valor} [{confianca_campo}]\n")
 
         all_results.append(result)
 
@@ -36,14 +36,15 @@ def document_workflow(input_file_path, MIN_SCORE = 0.5):
     if len(all_results) > 1:
         final_result = utils.gather_results(all_results)
     else:
-        final_result = all_results
+        final_result = all_results[0]
 
     print("\nRESULTADO FINAL\n")
-
+    extracao_final = final_result.get("extracao", {})
+    #campos = extracao.get("campos", {})
+    confianca_final = extracao.get("confianca", {})
     for campo, valor in final_result["extracao"]["campos"].items():
-        conf = final_result["extracao"]["confianca"].get(campo)
-        print(f"{campo}: {valor} [{conf}]")
-
+        confianca_campo = confianca_final.get(campo, "-")
+        print(f"  {campo}: {valor} [{confianca_campo}]\n")
 
     #STEPS FOR DIGITAL CARTEIRA NACIONAL DE HABILITAÇÃO ONLY
 
@@ -55,34 +56,34 @@ def document_workflow(input_file_path, MIN_SCORE = 0.5):
     return final_result_with_xml
 
 
-def processar_documento(caminho_pdf: str) -> dict:
-    """
-    Orquestra o fluxo principal de processamento do documento:
-    1. valida o PDF;
-    2. extrai os dados;
-    3. gera a estrutura XML;
-    4. retorna o resultado consolidado.
-    """
-
-    validacao = validar_documento(caminho_pdf)
-
-    if not validacao["valido"]:
-        return {
-            "status": "erro",
-            "documento_valido": False,
-            "mensagens": validacao["mensagens"],
-            "dados_extraidos": None,
-            "xml": None
-        }
-
-    #dados_extraidos = extrair_dados(caminho_pdf)
-    dados_extraidos = "Olá"
-    #xml_gerado = gerar_xml(dados_extraidos)
-    xml_gerado = " Mundo"
-    return {
-        "status": "sucesso",
-        "documento_valido": True,
-        "mensagens": validacao["mensagens"],
-        "dados_extraidos": dados_extraidos,
-        "xml": xml_gerado
-    }
+#def processar_documento(caminho_pdf: str) -> dict:
+#    """
+#    Orquestra o fluxo principal de processamento do documento:
+#    1. valida o PDF;
+#    2. extrai os dados;
+#    3. gera a estrutura XML;
+#    4. retorna o resultado consolidado.
+#    """
+#
+#    validacao = validar_documento(caminho_pdf)
+#
+#    if not validacao["valido"]:
+#        return {
+#            "status": "erro",
+#            "documento_valido": False,
+#            "mensagens": validacao["mensagens"],
+#            "dados_extraidos": None,
+#            "xml": None
+#        }
+#
+#    #dados_extraidos = extrair_dados(caminho_pdf)
+#    dados_extraidos = "Olá"
+#    #xml_gerado = gerar_xml(dados_extraidos)
+#    xml_gerado = " Mundo"
+#    return {
+#        "status": "sucesso",
+#        "documento_valido": True,
+#        "mensagens": validacao["mensagens"],
+#        "dados_extraidos": dados_extraidos,
+#        "xml": xml_gerado
+#    }

@@ -376,7 +376,7 @@ def calcular_confianca_etiqueta(
 
 # OCR
 
-def executar_ocr(img, min_score: float):
+def executar_ocr(img, ocr, min_score: float):
     resultado = ocr.predict(img)
     res = resultado[0]
 
@@ -726,14 +726,14 @@ def extrair_campos_por_contexto(linhas: list[LinhaOCR]) -> dict:
 # CLASSIFICAÇÃO DO TIPO DE DOCUMENTO
 
 MARCADORES_DOCUMENTO = {
-    "RG": [
+    "CARTEIRA DE IDENTIDADE": [
         "CARTEIRA DE IDENTIDADE",
         "CEDULA DE IDENTIDADE",
         "REGISTRO GERAL",
         "SECRETARIA DE SEGURANCA PUBLICA",
         "INSTITUTO DE IDENTIFICACAO",
     ],
-    "CNH": [
+    "CARTEIRA NACIONAL DE HABILITAÇÃO": [
         "CARTEIRA NACIONAL DE HABILITACAO",
         "REGISTRO NACIONAL DE CARTEIRA DE HABILITACAO",
         "DETRAN",
@@ -747,7 +747,7 @@ MARCADORES_DOCUMENTO = {
 def classificar_tipo_documento(texts, scores, min_score: float):
     votos = {"CARTEIRA DE IDENTIDADE": 0.0, "CARTEIRA NACIONAL DE HABILITAÇÃO": 0.0}
     evidencias = []
-
+    print("[debug] Comecou for do classificar tipo documento. \n")
     for text, score in zip(texts, scores):
         if score < min_score:
             continue
@@ -767,9 +767,9 @@ def classificar_tipo_documento(texts, scores, min_score: float):
                         "marcador": marcador,
                         "similaridade": round(sim, 3),
                     })
-
+    print("[debug] Terminou for do classificar tipo documento. \n")
     total_votos = sum(votos.values())
-
+    
     if total_votos == 0:
         return {
             "tipo": "DESCONHECIDO",
@@ -864,19 +864,18 @@ def salvar_xml(resultado: dict, caminho_xml: str):
 
 # PROCESSAMENTO DE DOCUMENTO
 
-def processar_documento(document_imagem: np.ndarray, min_score: float):
+def processar_documento(document_imagem: np.ndarray, ocr, min_score: float):
     
-    if document_imagem is not np.ndarray:
-        raise ValueError(f"Nao foi possivel usar a imagem")
+    #if document_imagem is not np.ndarray:
+    #    print("deubg " + str(type(document_imagem)))
+    #    raise ValueError(f"Nao foi possivel usar a imagem")
 
-    texts, scores, boxes = executar_ocr(document_imagem, min_score=min_score)
+    texts, scores, boxes = executar_ocr(document_imagem, ocr, min_score=min_score)
+    print("[debug] Executou ocr. \n")
 
-    tipo_documento = classificar_tipo_documento(
-        texts=texts,
-        scores=scores,
-        min_score=min_score,
-    )
+    tipo_documento = classificar_tipo_documento(texts,scores,min_score)
 
+    print("[debug] classificou documento. \n")
     linhas_tokens = agrupar_por_linha(texts, scores, boxes)
     linhas = montar_linhas_ocr(linhas_tokens)
 
@@ -885,19 +884,19 @@ def processar_documento(document_imagem: np.ndarray, min_score: float):
         for linha in linhas
         if linha.texto.strip()
     ]
-
+    print("[debug] vai extrair campos:  \n")
     extracao = extrair_campos_por_contexto(linhas)
-
+    print("[debug] Processar documento vai retornar: .. \n")
     return {
-        "arquivo": os.path.basename(caminho_imagem),
+        #"arquivo": os.path.basename(caminho_imagem),
         "tipo_documento": tipo_documento,
         "extracao": extracao,
-        "texto_por_linhas": texto_por_linhas,
-        "tokens_ocr": [
-            {
-                "texto": t,
-                "score": float(s),
-            }
-            for t, s in zip(texts, scores)
-        ],
+        #"texto_por_linhas": texto_por_linhas,
+        #"tokens_ocr": [
+        #    {
+        #        "texto": t,
+        #        "score": float(s),
+        #    }
+        #    for t, s in zip(texts, scores)
+        #],
     }
