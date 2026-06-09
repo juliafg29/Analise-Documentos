@@ -27,8 +27,6 @@ def pdf_to_images(caminho_pdf: str, dpi: int = 300) -> list[np.ndarray]:
         imagem_cv = cv2.cvtColor(imagem_np, cv2.COLOR_RGB2BGR)
 
         todas_paginas.append(imagem_cv)
-    print(type(todas_paginas))
-    print(type(todas_paginas[0]))
     return todas_paginas
 
 def compose_paddle_ocr():

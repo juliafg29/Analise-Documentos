@@ -23,7 +23,7 @@ def document_workflow(input_file_path, tipo_entrada, ocr, MIN_SCORE = 0.5):
         if len(motivos) >= 1:
             logger.info (f"{str(veredito)} pelos motivos: {str(motivos)}.")
         else:
-            logger.info (f"{str(veredito)}.")
+            logger.info (f"Documento {str(veredito)}.")
 
 
     all_results = []
@@ -43,12 +43,6 @@ def document_workflow(input_file_path, tipo_entrada, ocr, MIN_SCORE = 0.5):
             campos = extracao.get("campos", {})
             confianca = extracao.get("confianca", {})
 
-            print("\nCAMPOS_EXTRAIDOS\n")
-        
-            for campo, valor in campos.items():
-                confianca_campo = confianca.get(campo, "-")
-                print(f"  {campo}: {valor} [{confianca_campo}]\n")
-
             all_results.append(result)
 
         elif tipo_entrada == "cnh_digital":
@@ -62,12 +56,6 @@ def document_workflow(input_file_path, tipo_entrada, ocr, MIN_SCORE = 0.5):
             extracao = resultado_cnh_digital.get("extracao", {})
             campos = extracao.get("campos", {})
             confianca = extracao.get("confianca", {})
-
-            print("\nCAMPOS_EXTRAIDOS\n")
-
-            for campo, valor in campos.items():
-                confianca_campo = confianca.get(campo, "-")
-                print(f"  {campo}: {valor} [{confianca_campo}]\n")
 
             all_results.append(resultado_cnh_digital)
 

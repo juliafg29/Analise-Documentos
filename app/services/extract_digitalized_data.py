@@ -71,27 +71,27 @@ REGEX_LOCAL_UF = re.compile(
 
 # RÓTULOS PARA CAMPOS DOS DOCUMENTOS
 ROTULOS_CAMPOS = {
-    "nome": [
+    "NomeCompleto": [
         "NOME",
         "NOME COMPLETO",
         "NOME CIVIL",
         "NOME SOCIAL",
     ],
-    "cpf": [
+    "CPF": [
         "CPF",
         "C.P.F",
         "C P F",
         "CADASTRO DE PESSOA FISICA",
         "CADASTRO DE PESSOAS FISICAS",
     ],
-    "rg": [
+    "RG": [
         "REGISTRO GERAL",
         "R.G",
         "RG",
         "GERAL",
         "DOC IDENTIDADE",
     ],
-    "data_nascimento": [
+    "DataNascimento": [
         "DATA DE NASCIMENTO",
         "DATA NASCIMENTO",
         "DT NASCIMENTO",
@@ -110,7 +110,7 @@ ROTULOS_CAMPOS = {
         "EMISSAO",
         "EXPED",
     ],
-    "local_nascimento": [
+    "LocalNascimento": [
         "NATURALIDADE",
         "LOCAL DE NASCIMENTO",
         "LOCAL NASCIMENTO",
@@ -118,7 +118,7 @@ ROTULOS_CAMPOS = {
         "NATURAL DE",
         "MUNICIPIO NASCIMENTO",
     ],
-    "orgao_emissor": [
+    "OrgaoEmissor": [
         "ORGAO EXPEDIDOR",
         "ORG EXPEDIDOR",
         "ORGAO EMISSOR",
@@ -130,7 +130,7 @@ ROTULOS_CAMPOS = {
 }
 
 CAMPOS_DATA = {
-    "data_nascimento",
+    "DataNascimento",
     "data_expedicao",
 }
 
@@ -282,17 +282,17 @@ def limpar_valor_por_campo(campo: str, valor: str) -> str | None:
     if campo == "cpf":
         return limpar_cpf(valor)
 
-    if campo == "rg":
+    if campo == "RG":
         return limpar_rg(valor)
 
     if campo in CAMPOS_DATA:
         return limpar_data(valor)
 
-    if campo == "nome":
+    if campo == "NomeCompleto":
         valor = limpar_texto(valor)
         return valor if parece_nome(valor) else None
 
-    if campo == "local_nascimento":
+    if campo == "LocalNascimento":
         valor = limpar_texto(valor)
         return valor if parece_local_nascimento(valor) else None
 
@@ -338,11 +338,11 @@ def calcular_confianca_etiqueta(
         score_validacao = 1.00
     elif campo in CAMPOS_DATA and limpar_data(valor):
         score_validacao = 0.95
-    elif campo == "nome" and parece_nome(valor):
+    elif campo == "NomeCompleto" and parece_nome(valor):
         score_validacao = 0.90
-    elif campo == "rg" and limpar_rg(valor):
+    elif campo == "RG" and limpar_rg(valor):
         score_validacao = 0.80
-    elif campo == "local_nascimento" and parece_local_nascimento(valor):
+    elif campo == "LocalNascimento" and parece_local_nascimento(valor):
         score_validacao = 0.75
 
     confianca = (
@@ -580,13 +580,13 @@ def extrair_valor_linha_abaixo(linhas: list[LinhaOCR], indice: int, campo: str):
 
 def extrair_campos_por_contexto(linhas: list[LinhaOCR]) -> dict:
     campos = {
-        "nome": None,
-        "cpf": None,
-        "rg": None,
-        "data_nascimento": None,
-        "data_expedicao": None,
-        "local_nascimento": None,
-        "orgao_emissor": None,
+        "NomeCompleto": None,
+        "DataNascimento": None,
+        "LocalNascimento": None,
+        "RG": None,
+        "OrgaoEmissor": None,
+        "CPF": None,
+        #"data_expedicao": None,
     }
 
     confianca = {}
@@ -647,7 +647,7 @@ def extrair_campos_por_contexto(linhas: list[LinhaOCR]) -> dict:
                 linhas_consumidas.add(indice_valor)
 
     # 2. CPF por regex global.
-    if not campos["cpf"]:
+    if not campos["CPF"]:
         texto_total = " ".join(l.norm for l in linhas)
         m = REGEX_CPF.search(texto_total)
 
@@ -655,15 +655,15 @@ def extrair_campos_por_contexto(linhas: list[LinhaOCR]) -> dict:
             cpf = limpar_cpf(m.group())
 
             if cpf:
-                campos["cpf"] = cpf
-                confianca["cpf"] = calcular_confianca_etiqueta(
-                    campo="cpf",
+                campos["CPF"] = cpf
+                confianca["CPF"] = calcular_confianca_etiqueta(
+                    campo="CPF",
                     valor=cpf,
                     score_ocr=0.80,
                     score_rotulo=0.0,
                     origem="regex_global",
                 )
-                evidencias["cpf"] = {
+                evidencias["CPF"] = {
                     "valor_bruto": m.group(),
                     "linha": linha.texto,
                     "indice_linha_valor": i,
@@ -671,21 +671,21 @@ def extrair_campos_por_contexto(linhas: list[LinhaOCR]) -> dict:
                 }
 
     # 3. Local de nascimento por padrão municipal/UF, apenas fallback.
-    if not campos["local_nascimento"]:
+    if not campos["LocalNascimento"]:
         for linha in linhas:
             if REGEX_LOCAL_UF.search(linha.norm):
                 valor = limpar_texto(linha.norm)
 
                 if parece_local_nascimento(valor):
-                    campos["local_nascimento"] = valor
-                    confianca["local_nascimento"] =  calcular_confianca_etiqueta(
-                        campo="local_nascimento",
+                    campos["LocalNascimento"] = valor
+                    confianca["LocalNascimento"] =  calcular_confianca_etiqueta(
+                        campo="LocalNascimento",
                         valor=valor,
                         score_ocr=linha.score_medio,
                         score_rotulo=0.0,
                         origem="regex_local_uf",
                     )
-                    evidencias["local_nascimento"] = {
+                    evidencias["LocalNascimento"] = {
                     "linha": linha.texto,
                     "indice_linha_valor": i,
                     "origem": "regex_local_uf",

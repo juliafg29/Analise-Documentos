@@ -317,7 +317,7 @@ def ocr_image_with_confidence(
         output_type=pytesseract.Output.DICT,
     )
 
-    # Índice palavra → confiança (mantém o máximo para palavras repetidas).
+    # Índice palavra: confiança (mantém o máximo para palavras repetidas).
     word_confidences: dict[str, float] = {}
 
     lines_map: dict[tuple[int, int, int], list[str]] = {}
@@ -742,6 +742,8 @@ def parse_cnh_text(
      5. Fallback por MRZ para nome e data de nascimento
 
     """
+    lc = line_confidences or {}
+    
     lines = [clean_field(line) for line in text.splitlines()]
     lines = [line for line in lines if line]
     joined = "\n".join(lines)
@@ -920,25 +922,21 @@ def extract_ecnh(
     # Monta dicionários separados de campos e confianças para o resultado final,
     # mapeando os nomes internos para os nomes usados na saída pública da API
     campos = {
-        "nome": dados.nome,
-        "data_nascimento": dados.data_nascimento,
-        "nacionalidade": dados.nacionalidade,
-        "local_nascimento": dados.local_nascimento,
-        "cpf": dados.cpf,
-        "rg": dados.documento_identidade,
-        "orgao_emissor": dados.orgao_emissor,
-        "uf": dados.uf,
+        "NomeCompleto": dados.nome,
+        "DataNascimento": dados.data_nascimento,
+        "LocalNascimento": dados.local_nascimento,
+        "RG": dados.documento_identidade,
+        "OrgaoEmissor": dados.orgao_emissor,
+        "CPF": dados.cpf,
     }
 
     confianca = {
-        "nome": dados.confianca_campos.get("nome"),
-        "data_nascimento": dados.confianca_campos.get("data_nascimento"),
-        "nacionalidade": dados.confianca_campos.get("nacionalidade"),
-        "local_nascimento": dados.confianca_campos.get("local_nascimento"),
-        "cpf": dados.confianca_campos.get("cpf"),
-        "rg": dados.confianca_campos.get("documento_identidade"),
-        "orgao_emissor": dados.confianca_campos.get("orgao_emissor"),
-        "uf": dados.confianca_campos.get("uf"),
+        "NomeCompleto": dados.confianca_campos.get("nome"),
+        "DataNascimento": dados.confianca_campos.get("data_nascimento"),
+        "LocalNascimento": dados.confianca_campos.get("local_nascimento"),
+        "CPF": dados.confianca_campos.get("cpf"),
+        "RG": dados.confianca_campos.get("documento_identidade"),
+        "OrgaoEmissor": dados.confianca_campos.get("orgao_emissor"),
     }
 
     # Resultado final estruturado com três seções:
