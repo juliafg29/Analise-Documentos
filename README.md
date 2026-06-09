@@ -1,4 +1,4 @@
-# API de Validação e Extração de Documentos
+# API de Validação e Extração de Dados de Documentos Pessoais
 
 O projeto é parte de um Trabalho de Conclusão de Curso de Ciências da Computação - UFSC.
 
