@@ -29,17 +29,26 @@ async def analisar_documento(
 ):
     caminho_temporario = None
 
+    logger = utils.configurar_logger(pasta_saida)
+
     try:
+        logger.info("Iniciando análise do documento")
+        logger.info(f"Arquivo recebido: {arquivo.filename}")
+        logger.info(f"Tipo de entrada informado: {tipo_entrada}")
+
+
         tipo_entrada = tipo_entrada.strip().lower()
         tipos_validos = ["cnh_digital", "documento_escaneado"]
 
         if tipo_entrada not in tipos_validos:
+            logger.error(f"Tipo de entrada inválido: {tipo_entrada}")
             raise HTTPException(
                 status_code=400,
                 detail="tipo_entrada inválido. Use 'cnh_digital' ou 'documento_escaneado'."
             )
 
         if not arquivo.filename.lower().endswith(".pdf"):
+            logger.error("Arquivo rejeitado: extensão diferente de PDF")
             raise HTTPException(
                 status_code=400,
                 detail="Somente PDF é permitido."
@@ -50,12 +59,14 @@ async def analisar_documento(
         conteudo = await arquivo.read()
 
         if len(conteudo) > MAX_FILE_SIZE:
+            logger.error(f"Arquivo muito grande: {len(conteudo)} bytes")
             raise HTTPException(
                 status_code=413,
                 detail="Arquivo muito grande."
             )
 
         if not conteudo.startswith(b"%PDF-"):
+            logger.error("Arquivo rejeitado: conteúdo não inicia com assinatura PDF")
             raise HTTPException(
                 status_code=400,
                 detail="Arquivo PDF inválido."
@@ -65,26 +76,20 @@ async def analisar_documento(
             temp_file.write(conteudo)
             caminho_temporario = temp_file.name
 
-        print(f"[debug] Tipo de entrada informado: {tipo_entrada}\n")
-
         ocr_paddleocr = None
 
         if tipo_entrada == "documento_escaneado":
-            print("[debug] Vai compor Paddle OCR...\n")
+            logger.info("Documento escaneado informado. PaddleOCR será carregado.")
             ocr = utils.compose_paddle_ocr()
         else:
             ocr = "Pytesseract"
-            print("[debug] Documento informado como CNH digital. Paddle OCR não será carregado.\n")
-
-        print("[debug] Vai processar o documento...\n")
+            logger.info("CNH digital informada. Pytesseract será carregado.")
 
         resultado = document_workflow(
             input_file_path=caminho_temporario,
             tipo_entrada=tipo_entrada,
             ocr=ocr
         )
-
-        print("[debug] Terminou document_workflow.\n")
 
         # Cria a pasta de saída, se ela não existir
         pasta_saida = Path(pasta_saida)
@@ -98,6 +103,7 @@ async def analisar_documento(
         xml_final = resultado.get("xml")
 
         if not xml_final:
+            logger.error("XML final não encontrado no resultado")
             raise HTTPException(
                 status_code=500,
                 detail="O XML final não foi encontrado no resultado do processamento."
@@ -106,7 +112,7 @@ async def analisar_documento(
         # Salva o XML na pasta de saída
         caminho_xml.write_text(xml_final, encoding="utf-8")
 
-        print(f"[debug] XML salvo em: {caminho_xml}\n")
+        logger.info(f"Arquivo XML com informações completas salvo em: {caminho_xml.resolve()}")
 
         return JSONResponse(content={
             "status": "sucesso",
@@ -119,6 +125,7 @@ async def analisar_documento(
         raise
 
     except Exception as erro:
+        logger.exception(f"Erro ao processar documento: {str(erro)}")
         raise HTTPException(
             status_code=500,
             detail=f"Erro ao processar documento: {str(erro)}"
@@ -127,64 +134,4 @@ async def analisar_documento(
     finally:
         if caminho_temporario and os.path.exists(caminho_temporario):
             os.remove(caminho_temporario)
-'''
-@app.post("/documentos/analisar")
-async def analisar_documento(
-    arquivo: UploadFile = File(...)
-):
-    """
-    Endpoint responsável por:
-    - receber um PDF
-    - validar o documento
-    - extrair dados
-    - gerar XML
-    """
-
-    caminho_temporario = None
-
-    # Verifica extensão
-    if not arquivo.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Somente PDF é permitido.")
-
-    conteudo = await arquivo.read()
-
-    if conteudo != b"%PDF-":
-        raise HTTPException(status_code=400, detail="Arquivo PDF inválido.")
-
-    #await arquivo.seek(0)
-
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-
-    #conteudo = await arquivo.read()
-    if len(conteudo) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="Arquivo muito grande.")
-
-    try:
-        # Salva o arquivo temporariamente
-        with NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-            temp_file.write(conteudo)
-            caminho_temporario = temp_file.name
-
-        # Processa documento
-        print("[debug] Vai processar o documento: .. \n")
-        resultado = document_workflow(caminho_temporario)
-
-        print("O resultado foi: " , resultado["xml"])
-        
-        return JSONResponse(content={
-            "status": "sucesso",
-            "resultado": resultado
-        })
-
-    except Exception as erro:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao processar documento: {str(erro)}"
-        )
-
-    finally:
-        # Remove arquivo temporário
-        if caminho_temporario and os.path.exists(caminho_temporario):
-            os.remove(caminho_temporario)
-
-'''
+            logger.info(f"Arquivo temporário removido: {caminho_temporario}")

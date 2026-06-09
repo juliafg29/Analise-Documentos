@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 import logging
+from pathlib import Path
 from paddleocr import PaddleOCR
 
 
@@ -83,3 +84,29 @@ def gather_results(results:list):
     resultado_final["extracao"]["confianca"] = confianca_final
 
     return resultado_final
+
+
+def configurar_logger(pasta_saida: str = "."):
+    pasta_saida = Path(pasta_saida)
+    pasta_saida.mkdir(parents=True, exist_ok=True)
+
+    caminho_log = pasta_saida / "processamento_documento.log"
+
+    logger = logging.getLogger("documento")
+    logger.setLevel(logging.INFO)
+
+    if not logger.handlers:
+        formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(message)s"
+        )
+
+        file_handler = logging.FileHandler(caminho_log, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+
+    return logger

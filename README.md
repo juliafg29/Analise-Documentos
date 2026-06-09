@@ -10,6 +10,15 @@ curl -X POST "http://localhost:8000/documentos/analisar" \
 
 sudo docker run --rm -p 8000:8000 -v "$(pwd)":/app api-doc2
 
+sudo docker run --rm -p 8000:8000   -v "$(pwd)":/app   -v paddle_cache:/root/.paddleocr   -v paddlex_cache:/root/.paddlex   api-doc5   uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+
+curl -X POST "http://localhost:8000/documentos/analisar" \
+  -F "arquivo=@documento.pdf" \
+  -F "tipo_entrada=escaneado" \
+  -F "pasta_saida=saida"
+
+
 Requisitos Mínimos
 -----
 * Python 3.6
