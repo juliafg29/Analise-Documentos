@@ -1,151 +1,303 @@
-# Analise-Documentos
+# API de Validação e Extração de Documentos
 
-[INCLUDE]
-docker build -t api-documentos .
+O projeto é parte de um Trabalho de Conclusão de Curso de Ciências da Computação - UFSC.
 
-docker run -p 8000:8000 api-documentos
+Objetivo: API para validação de documento completo, classificação de documento e extração de informações de documentos pessoais a partir de arquivos PDF.
 
+Feito por: Julia F Gazolla (juliafg29)
+Entregue em julho de 2026.
+
+## Funcionalidades
+
+* Recebimento de documentos via API REST.
+* Processamento de documentos escaneados e natos digitais.
+* Extração de informações por OCR.
+* Geração de resultados estruturados em XML.
+* Suporte a execução via Docker (recomendado) ou local com Python.
+
+---
+
+# Requisitos
+
+Antes de executar o projeto, certifique-se de possuir os seguintes softwares instalados:
+
+* Python 3.11 ou superior
+* pip
+* Docker
+* Git
+
+Verifique as instalações com:
+
+```bash
+python --version
+pip --version
+docker --version
+git --version
+```
+
+---
+
+# Clonando o Projeto
+
+```bash
+git clone https://github.com/juliafg29/Analise-Documentos.git
+cd Analise-Documentos
+```
+---
+
+# Execução com Docker
+
+## 1. Construir a imagem
+
+```bash
+docker build -t analisador-documentos .
+```
+
+---
+
+## 2. Executar o container
+
+```bash
+docker run -d \
+  --name analisador-documentos \
+  -p 8000:8000 \
+  analisador-documentos
+```
+
+Verificar se está em execução:
+
+```bash
+docker ps
+```
+
+---
+
+## 3. Visualizar logs
+
+```bash
+docker logs -f analisador-documentos
+```
+
+---
+
+## 4. Parar o container
+
+```bash
+docker stop analisador-documentos
+```
+
+---
+
+## 5. Remover o container
+
+```bash
+docker rm analisador-documentos
+```
+---
+
+# Execução Local (Sem Docker)
+
+## 1. Criar ambiente virtual
+
+### Linux / MacOS
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### Windows
+
+```powershell
+python -m venv venv
+venv\Scripts\activate
+```
+
+---
+
+## 2. Instalar dependências Python
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 3. Instalar dependências do sistema
+
+### Ubuntu/Debian
+
+```bash
+sudo apt update
+
+sudo apt install -y \
+    libgl1 \
+    libglib2.0-0 \
+    tesseract-ocr \
+    tesseract-ocr-por \
+    poppler-utils \
+    ccache
+```
+
+### Windows
+
+Instalar manualmente:
+
+* Tesseract OCR
+* Poppler
+
+Adicionar ambos ao PATH do sistema.
+
+---
+
+## 4. Executar a API
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+A aplicação ficará disponível em:
+
+```text
+http://localhost:8000
+```
+
+Documentação Swagger:
+
+```text
+http://localhost:8000/docs
+```
+
+---
+
+# Utilização da API
+
+## Endpoint
+
+```http
+POST /documentos/analisar
+```
+
+---
+
+## Parâmetros
+
+| Campo        | Tipo    | Obrigatório | Descrição                                 |
+| ------------ | ------- | ----------- | ----------------------------------------- |
+| arquivo      | PDF     | Sim         | Documento PDF a ser processado            |
+| tipo_entrada | String  | Não         | cnh_digital OU documento_escaneado        |
+| pasta_saida  | String  | Não         | Diretório onde os resultados serão salvos |
+
+Caso não informado, o sistema utilizará o comportamento padrão definido na aplicação.
+
+---
+
+# Exemplo de Requisição
+
+## Linux / MacOS
+
+```bash
 curl -X POST "http://localhost:8000/documentos/analisar" \
-  -F "arquivo=@/caminho/para/seu/documento.pdf"
+  -F "arquivo=@/home/USER/documento.pdf" \
+  -F "tipo_entrada=documento_escaneado" \
+  -F "pasta_saida=home/USER/pasta_saida"
+```
 
-sudo docker run --rm -p 8000:8000 -v "$(pwd)":/app api-doc2
+---
 
-sudo docker run --rm -p 8000:8000   -v "$(pwd)":/app   -v paddle_cache:/root/.paddleocr   -v paddlex_cache:/root/.paddlex   api-doc5   uvicorn app.main:app --host 0.0.0.0 --port 8000
+## Windows (PowerShell)
 
+```powershell
+curl.exe -X POST "http://localhost:8000/documentos/analisar" `
+  -F "arquivo=@/home/USER/documento.pdf" `
+  -F "tipo_entrada=documento_escaneado" `
+  -F "pasta_saida=home/USER/pasta_saida"
+```
 
+---
+
+## Exemplo mínimo
+
+Como `tipo_entrada` e `pasta_saida` são opcionais:
+
+```bash
 curl -X POST "http://localhost:8000/documentos/analisar" \
-  -F "arquivo=@documento.pdf" \
-  -F "tipo_entrada=escaneado" \
-  -F "pasta_saida=saida"
-
-
-Requisitos Mínimos
------
-* Python 3.6
-* [pip](https://pip.pypa.io/en/stable/)
-
-Instalação no Linux
-===============
-
-Usando ambiente virtual
-----
-- Para apenas rodar localmente o site, você precisa do [virtualenv](https://virtualenv.pypa.io/en/stable/)
-instalado na sua máquina. Para verificar se ele está instalado, execute o
-seguinte comando e observe a saída:
-
-```console
-$ virtualenv --version
-```
-- Se a saída for uma numeração, como `16.1.0`, isso significa que o virtualenv já
-está instalado. Caso contrario, para instalar o virtualenv basta fazer:
-
-```console
-$ pip install virtualenv
-```
-- O mesmo procedimento pode ser feito para o git. Verifique se já está instalado,
-com o comando:
-```console
-$ git --version
+  -F "arquivo=@documento.pdf"
 ```
 
-- Se a saída for algo como `git version 2.17.1`, significa que o git já está
-instalado. Caso contrário, para instalar o git basta fazer:
-``` console
-$ sudo apt install git  # para ubuntu
+---
+
+# Exemplo de Resposta
+
+```xml
+<?xml version="1.0" ?>
+<documento>
+  <tipo_documento>CARTEIRA NACIONAL DE HABILITAÇÃO</tipo_documento>
+  <dados_extraidos>
+    <NomeCompleto confianca="96.0">JOÃO SILVA</NomeCompleto>
+    <DataNascimento confianca="72.33">01/01/2001</DataNascimento>
+    <LocalNascimento confianca="96.0">FLORIANOPOLIS</LocalNascimento>
+    <RG confianca="94.0">12345</RG>
+    <CPF confianca="80.5">123.456.789-00</CPF>
+    <OrgaoEmissor confianca="77.0">SSP</OrgaoEmissor>
+  </dados_extraidos>
+  <arquivo_original>
+    <nome_arquivo>doc.pdf</nome_arquivo>
+    <formato>application/pdf</formato>
+    <conteudo_base64>JVBERi0xLjcK(....)
+  </arquivo_original>
+</documento>
 ```
 
-> **Observação**: Esse comando funciona apenas em sistemas operacionais que utilizam o
-`apt` gerenciador de pacotes. Caso não seja o seu caso, [verifique como instalar](https://git-scm.com/download/linux) o git no seu sistema.
+---
 
-- Assumindo que seu git e virtualenv já estão configurados, faça o clone do repositório
+# Estrutura do Projeto
 
-```console
-$ git clone https://github.com/juliafg29/Analise-Documentos.git
-```
-- Após conclusão do clone, acesse o diretório recém-criado
-
-```console
-$ cd Analise-Documentos
-```
-- Rode o comando para criação de ambiente virtual e instalação das dependências
-
-```console
-$ virtualenv .venv 	# cria ambiente virtual
-$ source .venv/bin/activate	# ativa o ambiente
-$ pip install -r requirements.txt	# instala as dependências
-
+```text
+.
+├── app/
+│   ├── main.py
+│   ├── services/
+│   ├── models/
+│   └── ...
+├── requirements.txt
+├── Dockerfile
+└── README.md
 ```
 
-- Rode o projeto
+---
 
-```console
-$ make up
+# Solução de Problemas
+
+## Porta 8000 já está em uso
+
+Alterar a porta:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
-Abra o browser em [localhost:8000](http://localhost:8000) para ver o conteúdo gerado.
+ou
 
-**Observação**: Se sua porta 8000 já estiver em uso, você pode especificar uma porta diferente ao
-usar o parâmetro `PORT`. Por exemplo:
-
-```console
-$ make up PORT=8001
+```bash
+docker run -p 8080:8000 analisador-documentos
 ```
 
-E então acessar [localhost:8001](http://localhost:8001). Atenção! Algumas [portas são reservadas](https://pt.wikipedia.org/wiki/Lista_de_portas_dos_protocolos_TCP_e_UDP).
+---
 
-Para desativar o ambiente virtual
+## Verificar containers ativos
 
-```console
-$ deactivate
-```
-Para mais informações a respeito do `Makefile` e suas opções, digite
-
-```console
-$ make help
+```bash
+docker ps
 ```
 
-Usando docker-compose
---------------------------
+---
 
-Instale [o docker no seu computador](https://docs.docker.com/install/) em seguida execute os passos abaixo:
+## Reiniciar container
 
-``` console
-$ git clone git@github.com:juliafg29/Analise-Documentos.git
-$ cd Analise-Documentos
-$ docker-compose up
+```bash
+docker restart analisador-documentos
 ```
 
-
-Instalação no Windows
-===============
-
-Usando o docker-compose
---------------------------
-- [Opcional] Instale o [Visual Studio Code](https://code.visualstudio.com/) para fazer códigos legais;
-- [Opcional mas fortemente indicado] Instale o [Github Desktop](https://desktop.github.com/) para uma interface legal também;
-- Python 3.8 está disponível na loja do Windows e você deve instalar também. Só procurar e clicar em obter que está tudo certo;
-- Abra o Windows Powershell como administrador e faça a instalação do [chocolatey](https://chocolatey.org/install). Com ele poderemos instalar o comando make que será utilizado junto ao Docker;
-- Com o comando *choco* sendo reconhecido no Windows, [instale o make](https://chocolatey.org/packages/make) com `choco install make`;
-- Por último, faça a instalação do [Docker](https://docs.docker.com/docker-for-windows/install/), certifique-se que os requisitos mínimos estão sendo cumpridos. Para o Windows 10 Home, é recomendado que atualize o sistema antes da instalação (Configurações → Atualização e Segurança → Windows Update)
-    - Atente-se se o WSL2 está rodando na sua máquina. Se ainda for o WSL, [atualize](https://docs.microsoft.com/pt-br/windows/wsl/wsl2-kernel).
-- Faça fork do [repositório](https://github.com/juliafg29/Analise-Documentos);
-- Reinicie o computador para garantir que todas as mudanças foram efetuadas e salvas;
-- Agora você tem duas formas de rodar o projeto seguindo o:
-    - Comando `make up`
-    - Comando `docker-compose up`
-- Utilizando o terminal:
-    ``` console
-    $ git clone git@github.com:juliafg29/Analise-Documentos.git
-    $ cd Analise-Documentos
-    $ docker-compose up
-    ```
-    ou
-
-    ``` console
-    $ git clone git@github.com:juliafg29/Analise-Documentos.git
-    $ cd Analise-Documentos
-    $ make up
-    ```
-Nota:
------------
+---
 
