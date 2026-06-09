@@ -1,12 +1,8 @@
 # Código alternativo para detectar se o documento está completo
 # Apresentou melhores resultados apenas para CNH Digital
 
-from pathlib import Path
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-from datetime import datetime
-
 
 def to_gray(image):
     """
@@ -234,33 +230,3 @@ def detectar_documento_contorno(orig, mostrar_etapas=False):
         "motivos": motivos
     }
 
-
-def mostrar_pipeline(orig, gray, edges, fechado, imagem_saida, titulo):
-    """
-    Mostra as imagens geradas pelas etapas principais da pipeline.
-    """
-    fig, ax = plt.subplots(1, 5, figsize=(22, 6))
-
-    if len(orig.shape) == 3:
-        ax[0].imshow(cv2.cvtColor(orig, cv2.COLOR_BGR2RGB))
-    else:
-        ax[0].imshow(orig, cmap="gray")
-    ax[0].set_title("Original")
-
-    ax[1].imshow(gray, cmap="gray")
-    ax[1].set_title("Cinza")
-
-    ax[2].imshow(edges, cmap="gray")
-    ax[2].set_title("Canny")
-
-    ax[3].imshow(fechado, cmap="gray")
-    ax[3].set_title("Fechamento morfológico")
-
-    ax[4].imshow(cv2.cvtColor(imagem_saida, cv2.COLOR_BGR2RGB))
-    ax[4].set_title(titulo)
-
-    for a in ax:
-        a.axis("off")
-
-    plt.tight_layout()
-    plt.show()

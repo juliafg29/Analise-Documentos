@@ -4,10 +4,7 @@ from app.services.extract_digitalized_data import processar_documento
 from app.services.extract_digital_cnh_data import extract_ecnh
 from app.services.xml_utils import gerar_xml
 
-from datetime import datetime
 import logging
-
-
 
 def document_workflow(input_file_path, tipo_entrada, ocr, MIN_SCORE = 0.5):
 
@@ -23,7 +20,7 @@ def document_workflow(input_file_path, tipo_entrada, ocr, MIN_SCORE = 0.5):
         doc_completo_resultado = analisar_documento_morfologia(image)
         veredito = doc_completo_resultado.get("status", {})
         motivos = doc_completo_resultado.get("motivos", {})
-        if len(motivos) > 1:
+        if len(motivos) >= 1:
             logger.info (f"{str(veredito)} pelos motivos: {str(motivos)}.")
         else:
             logger.info (f"{str(veredito)}.")
@@ -79,7 +76,7 @@ def document_workflow(input_file_path, tipo_entrada, ocr, MIN_SCORE = 0.5):
                 "tipo_entrada inválido. Use 'documento_escaneado' ou 'cnh_digital'."
             )
 
-    # Escolhe o melhor resultado final entre as páginas
+    # 4. Preecnhe com o melhor resultado entre as páginas
     if len(all_results) > 1:
         final_result = utils.gather_results(all_results)
     else:
@@ -96,7 +93,7 @@ def document_workflow(input_file_path, tipo_entrada, ocr, MIN_SCORE = 0.5):
             logger.info(f"  {campo}: PREENCHIDO [{confianca_campo}].")
     
 
-    # XML compose
+    # 5. Compõe o XML a partir do resultado completo
     final_result_with_xml = gerar_xml(final_result, caminho_pdf=input_file_path)
     logger.info(f"Arquivo XML com informações completas gerado.")
 

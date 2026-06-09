@@ -1,9 +1,4 @@
-from __future__ import annotations
-
-import argparse
-import json
 import re
-import sys
 import unicodedata
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -13,13 +8,15 @@ import numpy as np
 import pytesseract
 import cv2
 
-
+# EXPRESSÕES REGULARES GLOBAIS
+# Padrões compilados uma única vez para reutilização eficiente ao longo do módulo.
 DATE_RE = re.compile(r"\b([0-3]?\d[/-][01]?\d[/-](?:19|20)?\d{2})\b")
 CPF_RE = re.compile(r"\b(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\b")
 REGISTRO_RE = re.compile(r"\b(\d{9,11})\b")
 LETTER_RE = r"A-Za-z\u00C0-\u00FF"
 
 
+# MARCADORES DE IDENTIFICAÇÃO DA CNH
 CNH_MARKERS = {
     "titulo_cnh": (r"CARTEIRA\s+NACIONAL\s+DE\s+HABILITACAO", 4),
     "driver_license": (r"DRIVER\s+LICENSE", 1),
@@ -30,6 +27,8 @@ CNH_MARKERS = {
     "campos_cnh": (r"NACIONALIDADE|CPF|CAT\s*HAB|N\s*REGISTRO|DOC\s*IDENTIDADE", 1),
 }
 
+# Coordenadas relativas (x, y, largura, altura) que definem as posições típicas de cada campo no layout 
+# padrão da CNH digital brasileira.
 CNH_FRONT_ROIS = {
     "cpf": (0.455, 0.545, 0.205, 0.085),
     "numero_registro": (0.655, 0.545, 0.190, 0.085),
@@ -37,6 +36,7 @@ CNH_FRONT_ROIS = {
 }
 
 
+# Dataclass que centraliza todos os campos extraídos de uma CNH.
 @dataclass
 class CNHData:
     documento_cnh: bool | None = None
@@ -53,7 +53,8 @@ class CNHData:
     marcadores_cnh: list[str] = field(default_factory=list)
     campos_detectados: dict[str, str] = field(default_factory=dict)
 
-
+# Associa o nome interno do campo às variações de rótulo que podem aparecer
+# no texto OCR da CNH (incluindo abreviações e grafias alternativas).
 FIELD_LABELS = {
     "nome": ["NOME E SOBRENOME", "NOME"],
     "data_nascimento": ["DATA NASCIMENTO", "DATA DE NASCIMENTO", "NASCIMENTO"],
@@ -65,27 +66,27 @@ FIELD_LABELS = {
     "uf": ["UF"],
 }
 
-
-
-# Normalização de texto
-
-
+# FUNÇÕES DE NORMALIZAÇÃO DE TEXTO
 def normalize_text(text: str) -> str:
+    # Remove o caractere de form-feed (comum em saídas do Tesseract)
     text = text.replace("\x0c", "\n")
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
-
 def normalize_for_match(text: str) -> str:
+    # Converte para forma NFKD para separar letras de seus diacríticos,
+    # remove os caracteres combinantes (acentos), converte para maiúsculas
+    # e elimina tudo que não seja letra ou dígito, facilitando comparações robustas.
     text = unicodedata.normalize("NFKD", text)
     text = "".join(char for char in text if not unicodedata.combining(char))
     text = text.upper()
     text = re.sub(r"[^A-Z0-9]+", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
-
 def normalize_date(value: str | None) -> str | None:
+    # Tenta extrair uma data com DATE_RE; se não encontrar padrão de data válida,
+    # devolve o campo limpo com clean_field. 
     if not value:
         return None
     match = DATE_RE.search(value)
@@ -99,36 +100,37 @@ def normalize_date(value: str | None) -> str | None:
         parts[-1] = str(2000 + year if year < 40 else 1900 + year)
     return "/".join(part.zfill(2) if i < 2 else part for i, part in enumerate(parts))
 
-
 def clean_field(value: str | None) -> str | None:
+    # Remove caracteres que não sejam letras, dígitos ou pontuação comum em documentos.
     if not value:
         return None
     value = re.sub(rf"[^{LETTER_RE}0-9 ,./'-]", " ", value)
     value = re.sub(r"\s+", " ", value).strip(" :-")
     return value or None
 
-
 def clean_letters(value: str | None) -> str | None:
+    # Mantém apenas letras (incluindo acentuadas) e espaços.
     if not value:
         return None
     value = re.sub(rf"[^{LETTER_RE} ]", " ", value)
     value = re.sub(r"\s+", " ", value).strip()
     return value or None
 
-
 def clean_digits(value: str | None) -> str | None:
+    # Remove tudo que não seja dígito; retorna None se não sobrar nada.
     digits = only_digits(value)
     return digits or None
 
-
 def clean_uf(value: str | None) -> str | None:
+    # Extrai a sigla de dois caracteres maiúsculos que representa a UF brasileira.
     if not value:
         return None
     match = re.search(r"\b([A-Z]{2})\b", value.upper())
     return match.group(1) if match else None
 
-
 def normalize_nacionalidade(value: str | None) -> str | None:
+    # Normaliza o campo de nacionalidade corrigindo variantes de OCR que confundem
+    # dígitos com letras semelhantes
     if not value:
         return None
 
@@ -146,15 +148,16 @@ def normalize_nacionalidade(value: str | None) -> str | None:
 
     return None
 
-
 def useful_field(value: str | None) -> str | None:
+    # Retorna o valor limpo apenas se contiver pelo menos 3 letras,
+    # filtrando strings que são apenas ruído numérico ou símbolos.
     value = clean_field(value)
     if not value or len(re.findall(rf"[{LETTER_RE}]", value)) < 3:
         return None
     return value
 
-
 def is_probable_label_text(value: str | None) -> bool:
+    # Evita que rótulos sejam interpretados erroneamente como dados extraídos.
     if not value:
         return True
     upper = normalize_for_match(value)
@@ -169,15 +172,11 @@ def is_probable_label_text(value: str | None) -> bool:
         return True
     return False
 
-
 def only_digits(value: str | None) -> str:
+    # Extrai somente os dígitos de uma string (retorna string vazia se None).
     return re.sub(r"\D", "", value or "")
 
-
-
-# CPF — validação matemática completa
-
-
+# Implementa o algoritmo oficial para verificar CPF
 def validate_cpf_digits(cpf: str | None) -> bool:
     """Valida os dois dígitos verificadores pelo algoritmo oficial da Receita Federal.
     """
@@ -186,6 +185,8 @@ def validate_cpf_digits(cpf: str | None) -> bool:
         return False
 
     def _check(digits: str, length: int) -> bool:
+        # Calcula o dígito verificador esperado para a posição 'length'
+        # usando pesos decrescentes e regra do módulo 11.
         weights = range(length + 1, 1, -1)
         total = sum(int(d) * w for d, w in zip(digits[:length], weights))
         remainder = (total * 10) % 11
@@ -196,7 +197,7 @@ def validate_cpf_digits(cpf: str | None) -> bool:
 
 
 def normalize_cpf(value: str | None) -> str | None:
-
+    # Extrai somente os dígitos, formata e valida matematicamente CPF
     digits = only_digits(value)
     if len(digits) != 11:
         return None
@@ -214,12 +215,11 @@ def normalize_cpf_from_words(value: str | None) -> str | None:
             return cpf
     return None
 
-
-
-# Outros normalizadores
-
+# NORMALIZADOR DO NÚMERO DE REGISTRO DA CNH
 
 def normalize_registro_cnh(value: str | None) -> str | None:
+    # Aceita sequências de exatamente 11 dígitos ou,
+    # como fallback, sequências de 9–10 dígitos desde que não sejam rótulos.
     digits = only_digits(value)
     if len(digits) == 11:
         return digits
@@ -228,11 +228,13 @@ def normalize_registro_cnh(value: str | None) -> str | None:
     return None
 
 
-
-# Pré-processamento de imagem
-
+# PRÉ-PROCESSAMENTO DE IMAGEM PARA OCR
+# Prepara a imagem para aumentar a taxa de reconhecimento do Tesseract.
 
 def preprocess_for_ocr(image: np.ndarray) -> np.ndarray:
+    # Converte para escala de cinza, aplica filtro bilateral para suavizar ruído
+    # preservando bordas, amplia imagens pequenas (< 1800px) com interpolação cúbica
+    # e binariza com threshold adaptativo gaussiano — ideal para documentos impressos.
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     gray = cv2.bilateralFilter(gray, 7, 45, 45)
     scale = 2 if max(gray.shape) < 1800 else 1
@@ -251,11 +253,13 @@ def preprocess_roi_for_ocr(image: np.ndarray) -> np.ndarray:
     return threshold
 
 
-
-# Recorte de página e frente da CNH
-
+# RECORTE DA REGIÃO DA CNH NA PÁGINA DO DOCUMENTO
 
 def crop_probable_cnh_page(image: np.ndarray) -> np.ndarray:
+    # Analisa apenas a metade esquerda da imagem 
+    # Detecta regiões claras por máscara de intensidade
+    # Escolhe o maior contorno candidato como a área da CNH.
+
     height, width = image.shape[:2]
     left_half = image[:, : int(width * 0.55)]
     gray = cv2.cvtColor(left_half, cv2.COLOR_BGR2GRAY)
@@ -280,7 +284,6 @@ def crop_probable_cnh_page(image: np.ndarray) -> np.ndarray:
     y1 = min(y + h + pad, height)
     return left_half[y0:y1, x0:x1]
 
-
 def crop_front_side(cnh_page: np.ndarray) -> np.ndarray:
     height, width = cnh_page.shape[:2]
     if height / max(width, 1) > 1.15:
@@ -288,8 +291,13 @@ def crop_front_side(cnh_page: np.ndarray) -> np.ndarray:
     return cnh_page
 
 
-
-# OCR
+# FUNÇÕES DE OCR
+# Encapsulam chamadas ao Tesseract com diferentes configurações e granularidades:
+# - ocr_image: texto plano de página inteira (PSM 6 — bloco uniforme).
+# - ocr_image_with_confidence: texto + índice palavra→confiança (para scoring).
+# - ocr_for_document_detection: múltiplas variantes (rotações) para detectar o tipo.
+# - ocr_words: retorna cada palavra com bounding box e confiança.
+# - ocr_line_with_confidence: OCR de linha única (PSM 7) com whitelist opcional.
 
 
 def ocr_image(image: np.ndarray, lang: str) -> str:
@@ -302,7 +310,6 @@ def ocr_image_with_confidence(
     image: np.ndarray,
     lang: str,
 ) -> tuple[str, dict[str, float]]:
-
     processed = preprocess_for_ocr(image)
     config = "--oem 3 --psm 6"
     data = pytesseract.image_to_data(
@@ -344,7 +351,8 @@ def ocr_image_with_confidence(
 
 
 def _field_confidence(value: str | None, word_confidences: dict[str, float]) -> float:
-
+    # Calcula a confiança média de um campo dividindo-o em tokens normalizados
+    
     if not value:
         return 0.0
 
@@ -371,6 +379,10 @@ def _field_confidence(value: str | None, word_confidences: dict[str, float]) -> 
 
 
 def ocr_for_document_detection(image: np.ndarray, lang: str) -> str:
+    # Executa OCR em múltiplas variantes da imagem (página completa, frente,
+    # frente rotacionada 90° para a direita e para a esquerda) para maximizar
+    # a chance de encontrar os marcadores de identificação da CNH,
+    # independentemente da orientação em que o documento foi digitalizado.
     page = crop_probable_cnh_page(image)
     front = crop_front_side(page)
     variants = [
@@ -386,6 +398,8 @@ def ocr_for_document_detection(image: np.ndarray, lang: str) -> str:
 
 
 def ocr_words(image: np.ndarray, lang: str = "por+eng") -> list[dict[str, Any]]:
+    # Retorna lista de dicionários com texto, posição (left, top, width, height)
+    # e confiança para cada palavra reconhecida. 
     processed = preprocess_for_ocr(image)
     data = pytesseract.image_to_data(
         processed, lang=lang, config="--oem 3 --psm 6",
@@ -418,6 +432,7 @@ def ocr_line_with_confidence(
     lang: str = "por+eng",
     whitelist: str | None = None,
 ) -> tuple[str, float]:
+
     processed = preprocess_roi_for_ocr(image)
     config = "--oem 3 --psm 7"
     if whitelist:
@@ -445,10 +460,12 @@ def ocr_line_with_confidence(
 
 
 
-# Recortes posicionais por rótulo
+# RECORTES POSICIONAIS POR RÓTULO
 
 
 def crop_relative(image: np.ndarray, box: tuple[float, float, float, float]) -> np.ndarray:
+    # Recorta uma região da imagem usando coordenadas relativas (0–1),
+    # convertendo-as para pixels absolutos com base nas dimensões reais.
     height, width = image.shape[:2]
     x, y, w, h = box
     x0 = max(int(width * x), 0)
@@ -466,6 +483,10 @@ def crop_near_word(
     x_offset: float,
     width_factor: float,
 ) -> np.ndarray:
+    # Localiza a palavra-rótulo mais próxima ao final da imagem (maior top/left)
+    # que corresponde ao padrão regex fornecido. A partir dessa âncora, define
+    # uma ROI expandida ao longo do eixo X (controlada por x_offset e width_factor)
+    # e em altura baseada na altura estimada da linha. Usa crop_relative como fallback.
     label_re = re.compile(label_pattern, re.IGNORECASE)
     candidates = [word for word in words if label_re.search(word["text"])]
     if not candidates:
@@ -486,43 +507,11 @@ def crop_near_word(
     return image[y0:y1, x0:x1]
 
 
-def crop_below_word(
-    image: np.ndarray,
-    words: list[dict[str, Any]],
-    label_pattern: str,
-    relative_fallback: tuple[float, float, float, float],
-    x_margin: float = 0.02,
-    y_gap: float = 0.002,
-    height_ratio: float = 0.085,
-) -> np.ndarray:
-    label_re = re.compile(label_pattern, re.IGNORECASE)
-    candidates = [word for word in words if label_re.search(word["text"])]
-    if not candidates:
-        return crop_relative(image, relative_fallback)
-
-    label = max(candidates, key=lambda word: (word["top"], word["left"]))
-    height, width = image.shape[:2]
-    x0 = max(int(label["left"] - width * x_margin), 0)
-    y0 = max(int(label["top"] + label["height"] + height * y_gap), 0)
-    x1 = min(int(width * 0.985), width)
-    y1 = min(int(y0 + height * height_ratio), height)
-    return image[y0:y1, x0:x1]
-
-
-
-# Extração por layout posicional
-
-
-def save_debug_crop(debug_dir: Path | None, filename: str, image: np.ndarray) -> None:
-    if not debug_dir:
-        return
-    debug_dir.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(debug_dir / filename), image)
+# EXTRAÇÃO POR LAYOUT POSICIONAL
 
 
 def extract_layout_fields(
     cnh_page: np.ndarray,
-    debug_dir: Path | None = None,
 ) -> tuple[dict[str, str], dict[str, float]]:
     """Extrai CPF e nacionalidade por posição no layout da CNH.
     """
@@ -537,7 +526,6 @@ def extract_layout_fields(
         CNH_FRONT_ROIS["cpf"],
         x_offset=1.4, width_factor=7.0,
     )
-    save_debug_crop(debug_dir, "cpf_roi.png", cpf_roi)
 
     cpf_text, cpf_conf = ocr_line_with_confidence(
         cpf_roi, lang="eng", whitelist="0123456789.-",
@@ -548,8 +536,6 @@ def extract_layout_fields(
     if cpf:
         fields["cpf"] = cpf
         confidences["cpf"] = cpf_conf
-    # Se o CPF não passou na validação, o campo simplesmente não é adicionado.
-    # confiança permanece ausente (0.0 implícito no merge).
 
     # --- Nacionalidade ---
     nacionalidade = None
@@ -577,16 +563,7 @@ def extract_layout_fields(
     return fields, confidences
 
 
-
-# Identificação do documento
-
-
-def identify_cnh_document(image_path: Path, lang: str = "por+eng") -> dict[str, Any]:
-    image = cv2.imread(str(image_path))
-    if image is None:
-        raise FileNotFoundError(f"Não foi possível abrir a imagem: {image_path}")
-    return identify_cnh_image(image, lang=lang)
-
+# IDENTIFICAÇÃO DO TIPO DE DOCUMENTO
 
 def identify_cnh_image(image: np.ndarray, lang: str = "por+eng") -> dict[str, Any]:
     text = ocr_for_document_detection(image, lang=lang)
@@ -608,12 +585,12 @@ def identify_cnh_image(image: np.ndarray, lang: str = "por+eng") -> dict[str, An
         "text": text,
     }
 
-
-
-# Extração por OCR textual
-
+# EXTRAÇÃO DE CAMPOS POR ANÁLISE TEXTUAL (OCR)
 
 def extract_after_label(lines: list[str], labels: Iterable[str]) -> str | None:
+    # Percorre as linhas do OCR buscando qualquer rótulo conhecido.
+    # Quando encontrado, tenta extrair o valor na mesma linha (após o rótulo)
+    # ou nas até 3 linhas seguintes, descartando candidatos que pareçam outros rótulos.
     normalized_labels = [label.upper() for label in labels]
     for index, line in enumerate(lines):
         upper = line.upper()
@@ -629,6 +606,8 @@ def extract_after_label(lines: list[str], labels: Iterable[str]) -> str | None:
 
 
 def extract_known_fields(lines: list[str]) -> dict[str, str]:
+    # Itera sobre FIELD_LABELS e aplica extract_after_label para cada campo,
+    # exceto CPF e número de registro (extraídos por outros métodos mais robustos).
     fields: dict[str, str] = {}
     for field_name, labels in FIELD_LABELS.items():
         if field_name in {"cpf", "numero_registro"}:
@@ -668,6 +647,8 @@ def extract_regex_fields(text: str) -> dict[str, str]:
 
 
 def extract_birth_fields(lines: list[str]) -> dict[str, str]:
+    # Detecta o padrão "DD/MM/AAAA, Cidade, UF" em uma única linha
+    # para extrair simultaneamente data de nascimento, local e UF.
     fields: dict[str, str] = {}
     for line in lines:
         if is_probable_label_text(line) and not DATE_RE.search(line):
@@ -686,6 +667,8 @@ def extract_birth_fields(lines: list[str]) -> dict[str, str]:
 
 
 def extract_identity_fields(lines: list[str]) -> dict[str, str]:
+    # Detecta o padrão "número_RG ÓRGÃO UF" em linhas sem data,
+    # extraindo documento de identidade, órgão emissor e UF em uma passagem.
     fields: dict[str, str] = {}
     for line in lines:
         if DATE_RE.search(line):
@@ -706,12 +689,17 @@ def extract_identity_fields(lines: list[str]) -> dict[str, str]:
 
 
 def looks_like_label(value: str) -> bool:
+    # Verificação rápida para descartar candidatos a valores que contenham
+    # palavras-chave típicas de rótulos de campo.
     labels = ("NOME", "DATA", "LOCAL", "CPF", "DOC")
     upper = value.upper()
     return any(label in upper for label in labels)
 
 
 def parse_mrz(text: str) -> dict[str, str]:
+    # Tenta interpretar linhas com formato MRZ (Machine Readable Zone) presentes
+    # em documentos internacionais (caracterizadas pelo uso extensivo de '<').
+    # Extrai nome completo e data de nascimento no formato AAMMDD.
     lines = [
         re.sub(r"[^A-Z0-9<]", "", line.upper())
         for line in text.splitlines()
@@ -732,6 +720,7 @@ def parse_mrz(text: str) -> dict[str, str]:
 
 
 def yymmdd_to_date(value: str) -> str:
+    # Converte data no formato MRZ (AAMMDD) para DD/MM/AAAA
     year = int(value[:2])
     month = value[2:4]
     day = value[4:6]
@@ -743,10 +732,16 @@ def parse_cnh_text(
     text: str,
     line_confidences: dict[str, float] | None = None,
 ) -> CNHData:
-    """Organiza o texto bruto do OCR em campos estruturados e associa confiança.
     """
-    lc = line_confidences or {}
+    
+     Orquestra as diferentes estratégias de extração textual em ordem de prioridade:
+     1. Extração por rótulo (extract_known_fields)
+     2. Extração por regex (extract_regex_fields) — não sobrescreve campos já encontrados
+     3. Extração combinada de nascimento (data + local + UF em uma linha)
+     4. Extração de identidade (RG + emissor + UF em uma linha)
+     5. Fallback por MRZ para nome e data de nascimento
 
+    """
     lines = [clean_field(line) for line in text.splitlines()]
     lines = [line for line in lines if line]
     joined = "\n".join(lines)
@@ -818,10 +813,12 @@ def parse_cnh_text(
 
 
 
-# Sanitização e mesclagem
-
+# SANITIZAÇÃO E MESCLAGEM DOS DADOS EXTRAÍDOS
 
 def sanitize_cnh_data(data: CNHData) -> CNHData:
+    # Aplica os normalizadores finais a cada campo do CNHData,
+    # garantindo consistência de formato independente da origem da extração.
+    # O CPF passa por uma última barreira de validação matemática aqui.
     data.nome = clean_letters(data.nome)
     data.nacionalidade = normalize_nacionalidade(data.nacionalidade)
     data.local_nascimento = clean_letters(data.local_nascimento)
@@ -833,6 +830,10 @@ def sanitize_cnh_data(data: CNHData) -> CNHData:
 
 
 def merge_data(primary: CNHData, fallback: CNHData) -> CNHData:
+    # Mescla dois CNHData onde 'primary' tem prioridade sobre 'fallback'.
+    # Para campos escalares: usa o valor de primary se não-nulo, caso contrário fallback.
+    # Para dicionários: faz união com primary sobrescrevendo chaves conflitantes.
+    # Para listas: usa primary se não-vazia, caso contrário fallback.
     primary_dict = asdict(primary)
     fallback_dict = asdict(fallback)
     merged: dict[str, Any] = {}
@@ -849,20 +850,14 @@ def merge_data(primary: CNHData, fallback: CNHData) -> CNHData:
         merged[key] = {**(fallback_value or {}), **(primary_value or {})}
     return CNHData(**merged)
 
-
-
-# Fluxo principal de extração
-
-
+# FUNÇÃO PRINCIPAL
 def extract_ecnh(
     document_image: np.ndarray,
     lang: str = "por+eng",
-    debug_dir: Path | None = None,
     validate_document: bool = True,
 ) -> tuple[CNHData, str]:
 
- 
-    #image = cv2.imread(str(image_path))
+
     if document_image is None:
         raise ValueError("A imagem do documento não pode ser vazio.")
 
@@ -885,13 +880,12 @@ def extract_ecnh(
         )
 
     cnh_crop = crop_probable_cnh_page(document_image)
-    layout_fields, layout_confidences = extract_layout_fields(cnh_crop, debug_dir=debug_dir)
+    layout_fields, layout_confidences = extract_layout_fields(cnh_crop)
 
     # Usa OCR com confiança para obter tanto o texto quanto o índice linha→conf.
     text, line_confidences = ocr_image_with_confidence(cnh_crop, lang=lang)
     ocr_data = parse_cnh_text(text, line_confidences)
 
-    # layout_data tem prioridade para CPF e nacionalidade (recorte posicional mais preciso).
     # A confiança do layout substitui a do OCR textual quando o campo veio do layout.
     layout_data = CNHData(
         documento_cnh=document_check["is_cnh"],
@@ -923,6 +917,8 @@ def extract_ecnh(
     
     dados = merged
 
+    # Monta dicionários separados de campos e confianças para o resultado final,
+    # mapeando os nomes internos para os nomes usados na saída pública da API
     campos = {
         "nome": dados.nome,
         "data_nascimento": dados.data_nascimento,
@@ -945,6 +941,10 @@ def extract_ecnh(
         "uf": dados.confianca_campos.get("uf"),
     }
 
+    # Resultado final estruturado com três seções:
+    # - tipo_documento: metadados da identificação (score, marcadores detectados).
+    # - extracao: campos extraídos com seus respectivos scores de confiança.
+    # - tokens_ocr: reservado para tokens individuais do OCR (preenchido externamente).
     resultado = {
         "tipo_documento": {
             "tipo": "CARTEIRA NACIONAL DE HABILITAÇÃO",
@@ -966,9 +966,3 @@ def extract_ecnh(
     }
 
     return resultado
-
-
-
-
-
-    #return merged, text

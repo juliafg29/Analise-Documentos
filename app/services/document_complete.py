@@ -1,9 +1,9 @@
-import os
+# Verifica se o documento está completo na imagem
+
 import cv2
 import numpy as np
-from datetime import datetime
 
-# Passa imagem para escala de cinza
+# Altera imagem para escala de cinza
 def _to_gray(imagem):
     if imagem is None:
         raise ValueError("Imagem inválida.")
@@ -13,23 +13,16 @@ def _to_gray(imagem):
 
 # Gera uma máscara binária utilizando 2 métodos diferentes. Destaca as regiões de interesse na imagem
 def _binarizar_documento(gray):
-    """
-    Testa Otsu e adaptativo, e escolhe a máscara mais plausível.
-    """
+
     # Aplica suavização com filtro Gaussiano
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
 
     # Limiarização global pelo método de Otsu
-        # O Otsu escolhe automaticamente um limiar que separa pixels
-        # claros e escuros com base no histograma da imagem.
     _, otsu = cv2.threshold(
         blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
     )
 
-    # Limiarização adaptativa. Ideal para imagens com iluminação irregular
-        # Diferente do Otsu, que usa um único limiar global,
-        # o método adaptativo calcula limiares locais.
-        # Isso ajuda em imagens com iluminação irregular.
+    # Limiarização adaptativa
     adap = cv2.adaptiveThreshold(
         blur, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -46,13 +39,13 @@ def _binarizar_documento(gray):
     otsu = normalizar(otsu)
     adap = normalizar(adap)
 
-    # Calcula a fração de pixels brancos em cada máscara. A fração indica quanto da imagem foi considerado conteúdo
+    # Calcula a fração de pixels brancos em cada máscara.
     frac_otsu = np.mean(otsu == 255)
     frac_adap = np.mean(adap == 255)
 
     alvo = 0.25
 
-    # Calcula o quanto cada método se aproxima da fração-alvo
+    # Calcula o quanto cada método se aproxima da fração-alvo.
     score_otsu = abs(frac_otsu - alvo)
     score_adap = abs(frac_adap - alvo)
 
@@ -60,7 +53,7 @@ def _binarizar_documento(gray):
     escolhida = otsu if score_otsu < score_adap else adap
     return blur, otsu, adap, escolhida
 
-# Operações morfológicas para melhorar a máscara binária: conectar partes e remover ruídos
+# Conecta partes e remove ruídos
 def _fechar_e_limpar(binaria, kernel_close=(15, 15), kernel_open=(5, 5), it_close=2, it_open=1):
 
     # Uni regiões próximas
@@ -96,7 +89,7 @@ def _pontuar_componente(x, y, w, h, area, altura_img, largura_img):
     dist_centro_norm = dist_centro / np.sqrt((largura_img / 2) ** 2 + (altura_img / 2) ** 2)
 
     # Pontuação baseada na área.
-    # Componentes muito pequenos tendem a ser ruído, assinatura ou QR code.
+    # Componentes muito pequenos tendem a ser ruído.
     # Componentes muito grandes podem representar fundo ou segmentação ruim.
     if 0.08 <= frac_area <= 0.95:
         score_area = 3.0
@@ -233,8 +226,7 @@ def analisar_documento_morfologia(
 
     motivos = []
 
-    # Analise se o documento encosta na borda. Se isso acontece, o documento pode estar cortado.
-    # A variável margem define uma tolerância em pixels
+    # Analise se o documento encosta na borda
     toca_esquerda = x <= margem
     toca_topo = y <= margem
     toca_direita = (x + w) >= (largura - margem)
@@ -250,19 +242,12 @@ def analisar_documento_morfologia(
     if toca_inferior:
         motivos.append("O documento encosta na borda inferior.")
 
-    #if melhor["retangularidade"] < 0.25:
-    #    motivos.append(
-    #        f"O componente detectado tem baixa retangularidade ({melhor['retangularidade']:.2f})."
-    #    )
-
     # Se não houver motivos de incompletude, considera-se completo
     completo = len(motivos) == 0
     status = "Completo" if completo else "Incompleto"
 
     # Desenha todos os elementos identificados em azul.
-    # Esses elementos correspondem aos componentes conectados relevantes
-    # encontrados após a etapa de morfologia.
-    cor_elemento = (255, 0, 0)  # azul em BGR
+    cor_elemento = (255, 0, 0)  
 
     for cand in candidatos:
         cx = cand["x"]
