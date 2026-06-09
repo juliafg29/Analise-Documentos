@@ -5,6 +5,7 @@ O projeto é parte de um Trabalho de Conclusão de Curso de Ciências da Computa
 Objetivo: API para validação de documento completo, classificação de documento e extração de informações de documentos pessoais a partir de arquivos PDF.
 
 Feito por: Julia F Gazolla (juliafg29)
+
 Entregue em julho de 2026.
 
 ## Funcionalidades
