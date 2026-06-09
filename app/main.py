@@ -2,14 +2,13 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from tempfile import NamedTemporaryFile
 from pathlib import Path
-import shutil
 import os
 
 from app.services.document_workflow import document_workflow
 import app.services.utils as utils
 
 app = FastAPI(
-    title="Serviço de Validação e Extração de Documentos",
+    title="Serviço de Validação e Extração de Dados de Documentos Pessoais",
     description="API para validação, extração de dados e geração XML de documentos pessoais digitalizados.",
     version="1.0.0"
 )

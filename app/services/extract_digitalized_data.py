@@ -1,29 +1,15 @@
-import os
 import re
 import unicodedata
-import xml.etree.ElementTree as ET
-
-from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, asdict
 from difflib import SequenceMatcher
-
-import cv2
 import numpy as np
-from paddleocr import PaddleOCR
-
-
-
-# CONFIGURAÇÕES
 
 EXTENSOES_IMAGEM = {
     ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"
 }
 
-
-
 # NORMALIZAÇÃO
-
 def normalizar_texto(texto: str) -> str:
     if not texto:
         return ""
@@ -39,7 +25,7 @@ def normalizar_texto(texto: str) -> str:
 
     return texto.strip()
 
-
+# Correções de expressões repetidas em todo documento pessoal
 CORRECOES_OCR = {
     "DATADE": "DATA DE",
     "DATAEXPEDICAO": "DATA EXPEDICAO",
@@ -69,9 +55,7 @@ def similaridade(a: str, b: str) -> float:
     return SequenceMatcher(None, aplicar_correcoes_ocr(a), aplicar_correcoes_ocr(b)).ratio()
 
 
-
 # REGEX
-
 REGEX_CPF = re.compile(
     r"\b\d{3}[\.\s]?\d{3}[\.\s]?\d{3}[-\s]?\d{2}\b"
 )
@@ -85,8 +69,7 @@ REGEX_LOCAL_UF = re.compile(
     r"\b[A-Z][A-Z\s]{2,}\s[-\/]?\s[A-Z]{2}\b"
 )
 
-# RÓTULOS
-
+# RÓTULOS PARA CAMPOS DOS DOCUMENTOS
 ROTULOS_CAMPOS = {
     "nome": [
         "NOME",
@@ -173,7 +156,6 @@ PALAVRAS_RUIDO = {
 
 
 # LIMPEZA E VALIDAÇÃO
-
 def limpar_cpf(valor: str) -> str | None:
     digitos = re.sub(r"\D", "", valor or "")
 
@@ -318,7 +300,6 @@ def limpar_valor_por_campo(campo: str, valor: str) -> str | None:
 
 
 # ESTRUTURA DE LINHA OCR
-
 @dataclass
 class LinhaOCR:
     indice: int
@@ -375,7 +356,6 @@ def calcular_confianca_etiqueta(
 
 
 # OCR
-
 def executar_ocr(img, ocr, min_score: float):
     resultado = ocr.predict(img)
     res = resultado[0]
@@ -398,7 +378,6 @@ def executar_ocr(img, ocr, min_score: float):
 
 
 # AGRUPAMENTO ESPACIAL EM LINHAS
-
 def centro_y(box):
     pts = np.array(box)
     return int(pts[:, 1].mean())
@@ -488,7 +467,6 @@ def montar_linhas_ocr(linhas_tokens):
 
 
 # DETECÇÃO DE RÓTULOS
-
 def encontrar_rotulos_na_linha(linha_norm: str):
     encontrados = []
 
@@ -747,7 +725,7 @@ MARCADORES_DOCUMENTO = {
 def classificar_tipo_documento(texts, scores, min_score: float):
     votos = {"CARTEIRA DE IDENTIDADE": 0.0, "CARTEIRA NACIONAL DE HABILITAÇÃO": 0.0}
     evidencias = []
-    print("[debug] Comecou for do classificar tipo documento. \n")
+
     for text, score in zip(texts, scores):
         if score < min_score:
             continue
@@ -767,7 +745,7 @@ def classificar_tipo_documento(texts, scores, min_score: float):
                         "marcador": marcador,
                         "similaridade": round(sim, 3),
                     })
-    print("[debug] Terminou for do classificar tipo documento. \n")
+
     total_votos = sum(votos.values())
     
     if total_votos == 0:
@@ -795,87 +773,14 @@ def classificar_tipo_documento(texts, scores, min_score: float):
     }
 
 
-# XML
-
-def resultado_para_xml(resultado: dict) -> str:
-    root = ET.Element("documento")
-
-    arquivo_el = ET.SubElement(root, "arquivo")
-    arquivo_el.text = resultado.get("arquivo", "")
-
-    tipo_el = ET.SubElement(root, "tipo_documento")
-    tipo_el.text = resultado["tipo_documento"]["tipo"]
-
-    campos_el = ET.SubElement(root, "campos")
-
-    campos = resultado["extracao"]["campos"]
-    confianca = resultado["extracao"]["confianca"]
-    evidencias = resultado["extracao"]["evidencias"]
-
-    for nome_campo, valor in campos.items():
-        campo_el = ET.SubElement(campos_el, nome_campo)
-        campo_el.text = valor or ""
-
-        if nome_campo in confianca:
-            campo_el.set("confianca", str(confianca[nome_campo]))
-
-        ev = evidencias.get(nome_campo)
-
-        if isinstance(ev, dict):
-            campo_el.set("origem", ev.get("origem", ""))
-
-            if ev.get("rotulo"):
-                campo_el.set("rotulo", ev["rotulo"])
-
-            if ev.get("linha_rotulo"):
-                campo_el.set("linha_rotulo", ev["linha_rotulo"])
-
-            if ev.get("linha_valor"):
-                campo_el.set("linha_valor", ev["linha_valor"])
-
-            if ev.get("linha"):
-                campo_el.set("linha", ev["linha"])
-
-    linhas_el = ET.SubElement(root, "linhas_ocr")
-
-    for linha in resultado["extracao"]["linhas"]:
-        linha_el = ET.SubElement(linhas_el, "linha")
-        linha_el.set("indice", str(linha["indice"]))
-
-        if linha.get("x_min") is not None:
-            linha_el.set("x_min", str(linha["x_min"]))
-            linha_el.set("y_min", str(linha["y_min"]))
-            linha_el.set("x_max", str(linha["x_max"]))
-            linha_el.set("y_max", str(linha["y_max"]))
-
-        linha_el.text = linha["texto"]
-
-    return ET.tostring(root, encoding="unicode")
-
-
-def salvar_xml(resultado: dict, caminho_xml: str):
-    xml_str = resultado_para_xml(resultado)
-
-    with open(caminho_xml, "w", encoding="utf-8") as f:
-        f.write(xml_str)
-
-    return caminho_xml
-
-
 # PROCESSAMENTO DE DOCUMENTO
 
 def processar_documento(document_imagem: np.ndarray, ocr, min_score: float):
-    
-    #if document_imagem is not np.ndarray:
-    #    print("deubg " + str(type(document_imagem)))
-    #    raise ValueError(f"Nao foi possivel usar a imagem")
 
     texts, scores, boxes = executar_ocr(document_imagem, ocr, min_score=min_score)
-    print("[debug] Executou ocr. \n")
-
+  
     tipo_documento = classificar_tipo_documento(texts,scores,min_score)
 
-    print("[debug] classificou documento. \n")
     linhas_tokens = agrupar_por_linha(texts, scores, boxes)
     linhas = montar_linhas_ocr(linhas_tokens)
 
@@ -884,19 +789,10 @@ def processar_documento(document_imagem: np.ndarray, ocr, min_score: float):
         for linha in linhas
         if linha.texto.strip()
     ]
-    print("[debug] vai extrair campos:  \n")
+
     extracao = extrair_campos_por_contexto(linhas)
-    print("[debug] Processar documento vai retornar: .. \n")
+
     return {
-        #"arquivo": os.path.basename(caminho_imagem),
         "tipo_documento": tipo_documento,
         "extracao": extracao,
-        #"texto_por_linhas": texto_por_linhas,
-        #"tokens_ocr": [
-        #    {
-        #        "texto": t,
-        #        "score": float(s),
-        #    }
-        #    for t, s in zip(texts, scores)
-        #],
     }

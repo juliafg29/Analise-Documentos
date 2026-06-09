@@ -1,10 +1,6 @@
-import os
 from pdf2image import convert_from_path
-from PIL import Image
-from PIL.Image import DecompressionBombError
 import cv2
 import numpy as np
-
 import logging
 from pathlib import Path
 from paddleocr import PaddleOCR
@@ -36,6 +32,9 @@ def pdf_to_images(caminho_pdf: str, dpi: int = 300) -> list[np.ndarray]:
     return todas_paginas
 
 def compose_paddle_ocr():
+    """
+    Compõe o PaddleOCR para lingua protuguesa brasileira.
+    """
     logging.getLogger('ppocr').setLevel(logging.WARNING)
 
     ocr_paddleocr = PaddleOCR(use_angle_cls=True, lang='pt')
@@ -43,7 +42,9 @@ def compose_paddle_ocr():
     return ocr_paddleocr
 
 def gather_results(results:list):
-
+    """
+    Reuni resultados distintos em um unico XML com máximo de campos preenchidos.
+    """
     if not results:
         return None
 
@@ -87,6 +88,7 @@ def gather_results(results:list):
 
 
 def configurar_logger(pasta_saida: str = "."):
+    
     pasta_saida = Path(pasta_saida)
     pasta_saida.mkdir(parents=True, exist_ok=True)
 

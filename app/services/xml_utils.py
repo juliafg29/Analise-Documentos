@@ -4,11 +4,11 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 
-def gerar_xml(final_result, caminho_pdf=None):
+def gerar_xml(final_result, caminho_pdf):
     """
     Gera XML estruturado e adiciona ao dicionário final_result.
 
-    Opcionalmente incorpora o PDF original em Base64.
+    Incorpora o PDF original em Base64.
     """
 
     campos = final_result.get("extracao", {}).get("campos", {})
@@ -63,7 +63,7 @@ def gerar_xml(final_result, caminho_pdf=None):
         indent="  "
     )
 
-    # adiciona XML ao resultado final
+    # Adiciona XML ao resultado final
     final_result["xml"] = xml_formatado
 
     return final_result
