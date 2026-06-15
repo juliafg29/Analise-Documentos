@@ -820,7 +820,7 @@ def parse_cnh_text(
 def sanitize_cnh_data(data: CNHData) -> CNHData:
     # Aplica os normalizadores finais a cada campo do CNHData,
     # garantindo consistência de formato independente da origem da extração.
-    # O CPF passa por uma última barreira de validação matemática aqui.
+
     data.nome = clean_letters(data.nome)
     data.nacionalidade = normalize_nacionalidade(data.nacionalidade)
     data.local_nascimento = clean_letters(data.local_nascimento)
@@ -832,10 +832,8 @@ def sanitize_cnh_data(data: CNHData) -> CNHData:
 
 
 def merge_data(primary: CNHData, fallback: CNHData) -> CNHData:
-    # Mescla dois CNHData onde 'primary' tem prioridade sobre 'fallback'.
-    # Para campos escalares: usa o valor de primary se não-nulo, caso contrário fallback.
-    # Para dicionários: faz união com primary sobrescrevendo chaves conflitantes.
-    # Para listas: usa primary se não-vazia, caso contrário fallback.
+    # Mescla dois CNHData onde primary tem prioridade sobre fallback.
+
     primary_dict = asdict(primary)
     fallback_dict = asdict(fallback)
     merged: dict[str, Any] = {}

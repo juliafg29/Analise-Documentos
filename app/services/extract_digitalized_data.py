@@ -5,11 +5,15 @@ from dataclasses import dataclass, asdict
 from difflib import SequenceMatcher
 import numpy as np
 
+# EXTENSÕES DE ARQUIVO SUPORTADAS
+
 EXTENSOES_IMAGEM = {
     ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"
 }
 
 # NORMALIZAÇÃO
+# Converte o texto para modo sem acentos, em maiúsculas
+# e com apenas caracteres alfanuméricos e pontuação essencial.
 def normalizar_texto(texto: str) -> str:
     if not texto:
         return ""
@@ -50,12 +54,12 @@ def aplicar_correcoes_ocr(texto: str) -> str:
     texto = re.sub(r"\s+", " ", texto)
     return texto.strip()
 
-
+# Calcula a similaridade entre duas strings após normalização e correção de OCR
 def similaridade(a: str, b: str) -> float:
     return SequenceMatcher(None, aplicar_correcoes_ocr(a), aplicar_correcoes_ocr(b)).ratio()
 
 
-# REGEX
+# REGEX GLOBAL
 REGEX_CPF = re.compile(
     r"\b\d{3}[\.\s]?\d{3}[\.\s]?\d{3}[-\s]?\d{2}\b"
 )
@@ -134,6 +138,8 @@ CAMPOS_DATA = {
     "data_expedicao",
 }
 
+# Conjunto de termos institucionais que aparecem frequentemente em documentos
+# brasileiros mas não correspondem a valores de campos pessoais.
 PALAVRAS_RUIDO = {
     "REPUBLICA",
     "FEDERATIVA",
@@ -156,6 +162,8 @@ PALAVRAS_RUIDO = {
 
 
 # LIMPEZA E VALIDAÇÃO
+# Cada função recebe um valor bruto (string OCR) e retorna o valor normalizado
+# e validado para o campo correspondente, ou None se o valor for inválido.
 def limpar_cpf(valor: str) -> str | None:
     digitos = re.sub(r"\D", "", valor or "")
 
@@ -193,7 +201,7 @@ def limpar_rg(valor: str) -> str | None:
 
     valor = aplicar_correcoes_ocr(valor)
 
-    # Remove rótulos comuns
+    # Remove rótulos textuais comuns que costumam aparecer junto ao número
     valor = re.sub(
         r"\b(REGISTRO|GERAL|RG|R\.G|DOC|DOCUMENTO|IDENTIDADE)\b",
         " ",
@@ -217,6 +225,7 @@ def limpar_rg(valor: str) -> str | None:
 
 
 def limpar_data(valor: str) -> str | None:
+    # Busca o primeiro padrão de data válido na string usando REGEX_DATA
     m = REGEX_DATA.search(valor or "")
 
     if not m:
@@ -234,7 +243,7 @@ def limpar_data(valor: str) -> str | None:
     except ValueError:
         return None
 
-
+# Normaliza e remove caracteres não alfanuméricos além de pontuação básica
 def limpar_texto(valor: str) -> str | None:
     valor = aplicar_correcoes_ocr(valor)
     valor = re.sub(r"[^A-Z0-9\s\/\-.]", " ", valor)
@@ -242,7 +251,7 @@ def limpar_texto(valor: str) -> str | None:
 
     return valor if len(valor) >= 2 else None
 
-
+# Heurística para verificar se uma string parece um nome de pessoa
 def parece_nome(valor: str) -> bool:
     valor = limpar_texto(valor)
 
@@ -262,7 +271,7 @@ def parece_nome(valor: str) -> bool:
 
     return True
 
-
+# Heurística para verificar se uma string parece um local de nascimento
 def parece_local_nascimento(valor: str) -> bool:
     valor = limpar_texto(valor)
 
@@ -314,6 +323,7 @@ class LinhaOCR:
     cx: int | None = None
     cy: int | None = None
 
+
 def calcular_confianca_etiqueta(
     campo: str,
     valor: str,
@@ -321,6 +331,14 @@ def calcular_confianca_etiqueta(
     score_rotulo: float = 0.0,
     origem: str = "",
 ) -> float:
+
+    ''' Calcula um score de confiança composto (0.0 a 1.0) para um valor extraído,
+     combinando quatro dimensões ponderadas:
+     - score_ocr (40%): confiança bruta do motor OCR para os tokens da linha.
+     - score_rotulo (25%): similaridade do rótulo detectado com o alias esperado.
+     - peso_origem (20%): penaliza origens menos confiáveis (ex: fallback por regex).
+     - score_validacao (15%): verifica se o valor passa nas regras do campo
+    '''
     pesos_origem = {
         "mesma_linha": 1.00,
         "linha_abaixo": 0.90,
@@ -355,7 +373,7 @@ def calcular_confianca_etiqueta(
     return round(min(max(confianca, 0.0), 1.0), 3)
 
 
-# OCR
+# Execução do OCR
 def executar_ocr(img, ocr, min_score: float):
     resultado = ocr.predict(img)
     res = resultado[0]
@@ -377,7 +395,7 @@ def executar_ocr(img, ocr, min_score: float):
     return list(texts), list(scores), list(boxes)
 
 
-# AGRUPAMENTO ESPACIAL EM LINHAS
+# Agrupa tokens OCR em linhas lógicas com base na proximidade vertical
 def centro_y(box):
     pts = np.array(box)
     return int(pts[:, 1].mean())
@@ -422,7 +440,7 @@ def agrupar_por_linha(texts, scores, boxes, tolerancia_y: int | None = None):
     linhas.append(sorted(atual, key=lambda tb: centro_x(tb[2])))
     return linhas
 
-
+# Converte a estrutura bruta de grupos de tokens em objetos LinhaOCR
 def montar_linhas_ocr(linhas_tokens):
     linhas = []
 
@@ -466,7 +484,7 @@ def montar_linhas_ocr(linhas_tokens):
     return linhas
 
 
-# DETECÇÃO DE RÓTULOS
+#  Localiza rótulos de campos conhecidos em uma linha de texto normalizada
 def encontrar_rotulos_na_linha(linha_norm: str):
     encontrados = []
 
@@ -513,6 +531,8 @@ def encontrar_rotulos_na_linha(linha_norm: str):
 
     return sorted(melhores.values(), key=lambda x: x["pos_ini"])
 
+# Extrai o trecho de texto entre o final do rótulo atual e o início
+# do próximo rótulo na mesma linha
 
 def trecho_do_rotulo_ate_proximo_rotulo(
     linha_norm: str,
@@ -537,6 +557,7 @@ def trecho_do_rotulo_ate_proximo_rotulo(
 
 
 # EXTRAÇÃO DE VALORES COM CONTEXTO
+# Estratégias ordenadas por confiabilidade para associar um valor ao campo
 
 def extrair_valor_mesma_linha(
     linha_norm: str,
@@ -577,6 +598,7 @@ def extrair_valor_linha_abaixo(linhas: list[LinhaOCR], indice: int, campo: str):
 
     return None, None
 
+# EXTRAÇÃO PRINCIPAL DE CAMPOS POR CONTEXTO
 
 def extrair_campos_por_contexto(linhas: list[LinhaOCR]) -> dict:
     campos = {
@@ -586,7 +608,6 @@ def extrair_campos_por_contexto(linhas: list[LinhaOCR]) -> dict:
         "RG": None,
         "OrgaoEmissor": None,
         "CPF": None,
-        #"data_expedicao": None,
     }
 
     confianca = {}
@@ -721,7 +742,8 @@ MARCADORES_DOCUMENTO = {
     ],
 }
 
-
+# Percorre todos os tokens OCR acima do limiar de confiança e compara
+# cada um com os marcadores de cada tipo de documento.
 def classificar_tipo_documento(texts, scores, min_score: float):
     votos = {"CARTEIRA DE IDENTIDADE": 0.0, "CARTEIRA NACIONAL DE HABILITAÇÃO": 0.0}
     evidencias = []
@@ -772,9 +794,8 @@ def classificar_tipo_documento(texts, scores, min_score: float):
         "evidencias": evidencias,
     }
 
-
-# PROCESSAMENTO DE DOCUMENTO
-
+# FUNÇÃO PRINCIPAL: processar_documento
+# Orquestra todo o pipeline de processamento de um documento
 def processar_documento(document_imagem: np.ndarray, ocr, min_score: float):
 
     texts, scores, boxes = executar_ocr(document_imagem, ocr, min_score=min_score)

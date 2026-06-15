@@ -8,6 +8,11 @@ Feito por: Julia F Gazolla (juliafg29)
 
 Entregue em julho de 2026.
 
+## Objetivo geral
+
+Apoiar a gestão de documentos acadêmicos digitais nas instituições brasileiras de Ensino Superior, por meio da aplicação de ferramentas computacionais que promovem a segurança, interoperabilidade e conformidade desses documentos.
+
+
 ## Funcionalidades
 
 * Recebimento de documentos via API REST.
@@ -173,6 +178,8 @@ http://localhost:8000/docs
 
 # Utilização da API
 
+Abra um novo terminal, enquanto estiver rodando container/local. 
+
 ## Endpoint
 
 ```http
@@ -259,7 +266,6 @@ curl -X POST "http://localhost:8000/documentos/analisar" \
 ├── app/
 │   ├── main.py
 │   ├── services/
-│   ├── models/
 │   └── ...
 ├── requirements.txt
 ├── Dockerfile
