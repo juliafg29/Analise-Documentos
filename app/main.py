@@ -117,7 +117,6 @@ async def analisar_documento(
             "status": "sucesso",
             "tipo_entrada": tipo_entrada,
             "arquivo_xml": str(caminho_xml),
-            "resultado": resultado
         })
 
     except HTTPException:
